@@ -28,6 +28,7 @@ def init_db() -> None:
     from ..evolve import models as _evolve  # noqa: F401
     from ..feedback import models as _feedback  # noqa: F401
     from ..rag import models as _rag  # noqa: F401
+    from ..training import models as _training  # noqa: F401
     SQLModel.metadata.create_all(get_engine())
 
 

@@ -26,6 +26,7 @@ from .routes import (
     evolve,
     feedback,
     files,
+    fine_tunes,
     images,
     mcp,
     mixle,
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router, prefix="/v1", tags=["conversations"])  # /v1/conversations (+ export)
     app.include_router(images.router, prefix="/v1", tags=["images"])      # /v1/images/generations
     app.include_router(datasets.router, prefix="/v1", tags=["datasets"])  # /v1/datasets/generate
+    app.include_router(fine_tunes.router, prefix="/v1", tags=["fine_tunes"])  # /v1/fine_tunes (train + serve)
     app.include_router(cloud.router, prefix="/v1", tags=["cloud"])        # /v1/cloud/objectstore
     app.include_router(evolve.router, prefix="/v1", tags=["evolve"])      # /v1/evolve/* (self-evolution)
     return app
