@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ..config import Settings, get_settings
 from ..core.registry import ModelRegistry
 from ..image_gen import register_demo_image_model
-from ..models import EchoAdapter, OpenAICompatAdapter
+from ..models import EchoAdapter, OpenAICompatAdapter, make_adapter
 from ..models.mixle_model import register_demo_mixle_model
 from ..models.task_cascade import register_demo_task_model
 from ..storage.db import init_db
@@ -42,11 +42,10 @@ def build_registry(settings: Settings) -> ModelRegistry:
                                               api_key=settings.llm_api_key))
     for model_id, backend in (settings.llm_backends or {}).items():   # per-model backends (local + cloud in one registry)
         try:
-            registry.register(OpenAICompatAdapter(
-                model_id,
-                base_url=backend.get("base_url", settings.llm_base_url),
-                api_key=backend.get("api_key", settings.llm_api_key),
-                upstream_model=backend.get("upstream_model")))
+            # provider= selects a native Anthropic/Gemini adapter; else OpenAI-compatible. One config, any provider.
+            registry.register(make_adapter(
+                model_id, backend,
+                default_base_url=settings.llm_base_url, default_api_key=settings.llm_api_key))
         except Exception:
             pass
     if settings.enable_demo_models:                             # demo models for /v1/mixle and /v1/images
