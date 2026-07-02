@@ -48,6 +48,9 @@ class FineTuneBody(BaseModel):
     records: list[Any] = Field(default_factory=list)     # feature records (dicts or tuples) for the structured backend
     label_field: str | None = None                       # key in each record holding the target label
     labels: list[str] | None = None                      # OR an explicit parallel label list
+    teacher_model: str | None = None                     # OR distill: a hosted model (any LLM, incl. Claude/Gemini) labels the records
+    teacher_prompt: str | None = None                    # instruction given to the teacher when labeling
+    teacher_labels: list[str] | None = None              # candidate labels to snap the teacher's reply to
     n_components: int = 1                                 # >1 -> a latent-regime mixture-of-trees student
     min_gain: float = 1.0                                 # description-length gain an edge must clear to be kept
     # llm / mixle GPU backends (returns a plan; launching is the operator's keyed step)
@@ -84,10 +87,15 @@ def create_fine_tune(
             _fail(session, job, "structured backend requires records=[...]")
             raise HTTPException(status_code=400, detail="structured backend requires records=[...]")
         registry = request.app.state.registry
+        if body.teacher_model and not registry.has(body.teacher_model):
+            _fail(session, job, f"teacher_model {body.teacher_model!r} not found")
+            raise HTTPException(status_code=404, detail=f"teacher_model {body.teacher_model!r} not found")
         background.add_task(
             service.run_structured_finetune,
             job.id, engine=get_engine(), registry=registry,
             records=body.records, label_field=body.label_field, labels=body.labels,
+            teacher_model=body.teacher_model, teacher_prompt=body.teacher_prompt,
+            teacher_labels=body.teacher_labels,
             n_components=body.n_components, min_gain=body.min_gain,
             artifact_root=_artifact_root(),
         )

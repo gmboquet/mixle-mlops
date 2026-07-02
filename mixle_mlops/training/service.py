@@ -9,6 +9,8 @@ the caller -- a failure is recorded on the row. ``plan_gpu_job`` produces the of
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -38,6 +40,54 @@ def _split_labels(
             ys.append(str(r[label_field]))
         return feats, ys
     raise ValueError("provide either labels=[...] or label_field=...")
+
+
+def label_with_teacher(
+    registry: Any,
+    teacher_model: str,
+    records: list[Any],
+    *,
+    prompt: str | None = None,
+    allowed_labels: list[str] | None = None,
+) -> list[str]:
+    """Label each record by asking a *hosted* teacher model -- any registered LLM, including the native Anthropic
+    and Gemini adapters. This is distillation through the platform: a frontier teacher's labels train a tiny local
+    student. Each record is sent as JSON with an optional instruction; the reply is snapped to ``allowed_labels``
+    when a candidate set is given (exact, else substring, else the first candidate)."""
+    from ..core.adapters import ChatMessage, ChatRequest
+
+    adapter = registry.get(teacher_model)
+    system = prompt or "Classify the record. Reply with only the single-word class label."
+    if allowed_labels:
+        system += " One of: " + ", ".join(allowed_labels) + "."
+
+    async def _label_all() -> list[str]:
+        out = []
+        for r in records:
+            req = ChatRequest(model=teacher_model, messages=[
+                ChatMessage(role="system", content=system),
+                ChatMessage(role="user", content=json.dumps(r, default=str)),
+            ], max_tokens=16, temperature=0.0)
+            completion = await adapter.chat(req)
+            raw = (completion.choices[0].message.text() if completion.choices else "").strip()
+            out.append(_snap_label(raw, allowed_labels))
+        return out
+
+    return asyncio.run(_label_all())
+
+
+def _snap_label(raw: str, allowed: list[str] | None) -> str:
+    token = raw.splitlines()[0].strip().strip(".,:;\"'").strip() if raw else ""
+    if not allowed:
+        return token or "unknown"
+    low = token.lower()
+    for lab in allowed:
+        if low == lab.lower():
+            return lab
+    for lab in allowed:
+        if lab.lower() in low or low in lab.lower():
+            return lab
+    return allowed[0]
 
 
 def train_structured(
@@ -94,24 +144,35 @@ def run_structured_finetune(
     records: list[Any],
     label_field: str | None = None,
     labels: list[str] | None = None,
+    teacher_model: str | None = None,
+    teacher_prompt: str | None = None,
+    teacher_labels: list[str] | None = None,
     n_components: int = 1,
     min_gain: float = 1.0,
     artifact_root: str = "./trained",
 ) -> None:
     """Background entry point: train the structured student, persist it, register it, and update the job row.
 
-    Opens its own DB session (the request's is already closed). Records any failure on the row rather than raising,
-    so a bad request can never crash the worker."""
+    When ``teacher_model`` is set (and no explicit labels), the records are first labeled by that hosted teacher --
+    distillation through the platform. Opens its own DB session (the request's is already closed). Records any
+    failure on the row rather than raising, so a bad request can never crash the worker."""
     with Session(engine) as session:
         job = session.get(FineTuneJob, job_id)
         if job is None or job.status == m.CANCELLED:
             return
         _finish(session, job, m.RUNNING)
         try:
+            teacher_used = None
+            if labels is None and label_field is None and teacher_model:
+                labels = label_with_teacher(registry, teacher_model, records,
+                                            prompt=teacher_prompt, allowed_labels=teacher_labels)
+                teacher_used = teacher_model
             student, metrics = train_structured(
                 records, label_field=label_field, labels=labels,
                 n_components=n_components, min_gain=min_gain, task=f"fine-tune {job.model}",
             )
+            if teacher_used:
+                metrics["teacher_model"] = teacher_used
             path = os.path.join(artifact_root, job_id)
             os.makedirs(artifact_root, exist_ok=True)
             student.save(path)

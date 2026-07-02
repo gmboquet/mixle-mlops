@@ -7,14 +7,46 @@ under Starlette's TestClient, so the job is already terminal when the POST retur
 """
 from __future__ import annotations
 
+from typing import AsyncIterator
+
 import mixle_mlops.storage.db as db
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
 from mixle_mlops.config import get_settings
+from mixle_mlops.core.adapters import (
+    ChatChunkChoice,
+    ChatCompletionChunk,
+    ChatRequest,
+    ChoiceDelta,
+    ModelAdapter,
+)
 from mixle_mlops.gateway.app import create_app
 from mixle_mlops.gateway.routes import fine_tunes as ft_routes
+
+
+class _RuleTeacher(ModelAdapter):
+    """A stand-in hosted teacher (as a native Claude/Gemini adapter would be): applies the churn rule and replies
+    with the label. Distilling it exercises the platform's teacher->tiny-student loop without a network call."""
+
+    kind = "llm"
+
+    def __init__(self, name: str):
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    async def stream(self, req: ChatRequest) -> AsyncIterator[ChatCompletionChunk]:
+        import json as _json
+
+        raw = req.messages[-1].text()
+        r = _json.loads(raw)
+        score = (1.5 if r["region"] == "west" else -0.5) + 0.4 * r["spend"] + 0.3 * r["visits"]
+        label = "churn" if score < 1.0 else "retain"
+        yield ChatCompletionChunk(model=req.model, choices=[ChatChunkChoice(delta=ChoiceDelta(content=label))])
 
 
 @pytest.fixture
@@ -124,6 +156,30 @@ def test_cancel_terminal_job_conflicts(client):
                             "label_field": "label"}).json()
     # it already succeeded (sync background) -> cancel is a 409
     assert client.post(f"/v1/fine_tunes/{job['id']}/cancel", headers=headers).status_code == 409
+
+
+def test_distill_hosted_teacher_into_structured_student(client):
+    # register a hosted teacher (stands in for a Claude/Gemini adapter) on the live registry
+    client.app.state.registry.register(_RuleTeacher("teacher-llm"))
+    headers = {"Authorization": f"Bearer {_key(client, 'distill@t.com')}"}
+    # unlabeled feature records + a teacher model -> the platform labels then distills a tiny structured student
+    feats = [{k: r[k] for k in ("region", "spend", "visits")} for r in _churn_records(400, 5)]
+    job = client.post("/v1/fine_tunes", headers=headers, json={
+        "backend": "structured", "model": "distilled-clf", "records": feats,
+        "teacher_model": "teacher-llm", "teacher_labels": ["churn", "retain"], "min_gain": 1.0,
+    }).json()
+    got = client.get(f"/v1/fine_tunes/{job['id']}", headers=headers).json()
+    assert got["status"] == "succeeded", got
+    assert got["metrics"]["teacher_model"] == "teacher-llm"       # provenance: distilled from the hosted teacher
+    assert got["metrics"]["train_agreement"] >= 0.8
+    assert "distilled-clf" in {m["id"] for m in client.get("/v1/models", headers=headers).json()["data"]}
+
+
+def test_unknown_teacher_model_is_rejected(client):
+    headers = {"Authorization": f"Bearer {_key(client, 'noteacher@t.com')}"}
+    r = client.post("/v1/fine_tunes", headers=headers, json={
+        "backend": "structured", "records": [{"a": 1}], "teacher_model": "ghost"})
+    assert r.status_code == 404
 
 
 def test_requires_authentication(client):
