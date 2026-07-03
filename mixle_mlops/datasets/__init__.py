@@ -17,11 +17,13 @@ truth by construction), or drive an LLM to emit structured JSON records against 
 from __future__ import annotations
 
 from .code_tasks import (
+    DEFAULT_FIELD_POOL,
     CodeTask,
     LLMTeacher,
     ReferenceTeacher,
     Trajectory,
     VerifiedDataset,
+    build_tasks,
     evaluate,
     extract_code,
     harvest,
@@ -55,6 +57,8 @@ __all__ = [
     "LLMTeacher",
     "extract_code",
     "make_task",
+    "build_tasks",
+    "DEFAULT_FIELD_POOL",
     "render_page",
     "run_parser",
     "verify",
