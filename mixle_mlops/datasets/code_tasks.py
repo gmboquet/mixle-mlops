@@ -350,11 +350,20 @@ class ReferenceTeacher:
     It emits real Python (regex-based, stdlib-only) that the sandbox actually executes; an LLM teacher
     drops into the same ``(html, schema, failed_code=, error=)`` slot. ``fail_first=True`` corrupts
     its first attempt per page to exercise the repair loop deterministically.
+
+    The programs are deliberately COMPACT and uniform (three skeletons; only the record-building line
+    varies with the schema): short targets are what make the harvested pairs learnable by a tiny
+    from-scratch model, and uniform structure is what such a model can generalize across schemas.
     """
 
     def __init__(self, fail_first: bool = False) -> None:
         self.fail_first = fail_first
         self._seen: set[int] = set()
+
+    @staticmethod
+    def _record(fields: list[str], casts: dict[str, str], value: Callable[[str, int], str]) -> str:
+        cast = {"int": "int(%s)", "float": "float(%s)", "str": "%s"}
+        return "{" + ", ".join(f'"{f}": ' + cast[casts[f]] % value(f, i) for i, f in enumerate(fields)) + "}"
 
     def __call__(
         self, html: str, schema: dict[str, str], failed_code: str | None = None, error: str | None = None
@@ -364,38 +373,36 @@ class ReferenceTeacher:
             self._seen.add(key)
             return "def parse(html):\n    return undefined_name\n"  # deliberately broken first draft
         fields = list(schema)
-        casts = {k: ("int" if v == "int" else "float" if v == "float" else "str") for k, v in schema.items()}
+        casts = dict(schema)
         if "<table" in html:
             body = f"""
 import re
 def parse(html):
-    rows = re.findall(r"<tr>(.*?)</tr>", html, re.S)
     out = []
-    for row in rows:
-        cells = re.findall(r"<td>(.*?)</td>", row, re.S)
-        if len(cells) == {len(fields)}:
-            out.append({{{", ".join(f'"{f}": {casts[f]}(cells[{i}].strip())' for i, f in enumerate(fields))}}})
+    for r in re.findall(r"<tr>(.*?)</tr>", html, re.S):
+        v = re.findall(r"<td>(.*?)</td>", r)
+        if len(v) == {len(fields)}:
+            out.append({self._record(fields, casts, lambda f, i: f"v[{i}]")})
     return out
 """
         elif "class='item'" in html or 'class="item"' in html:
-            spans = ", ".join(
-                f'"{f}": {casts[f]}(re.search(r"<span class=.{f}.>(.*?)</span>", block, re.S).group(1).strip())'
-                for f in fields
-            )
             body = f"""
 import re
 def parse(html):
-    blocks = re.findall(r"<div class=.item.>(.*?)</div>", html, re.S)
-    return [{{{spans}}} for block in blocks]
+    out = []
+    for b in re.findall(r"<div class='item'>(.*?)</div>", html, re.S):
+        v = re.findall(r">([^<]*)</span>", b)
+        out.append({self._record(fields, casts, lambda f, i: f"v[{i}]")})
+    return out
 """
         else:  # list template: "field: value | field: value"
             body = f"""
 import re
 def parse(html):
     out = []
-    for item in re.findall(r"<li>(.*?)</li>", html, re.S):
-        kv = dict(p.strip().split(": ", 1) for p in item.split(" | "))
-        out.append({{{", ".join(f'"{f}": {casts[f]}(kv["{f}"])' for f in fields)}}})
+    for it in re.findall(r"<li>(.*?)</li>", html, re.S):
+        kv = dict(p.split(": ", 1) for p in it.split(" | "))
+        out.append({self._record(fields, casts, lambda f, i: f'kv["{f}"]')})
     return out
 """
         return body.strip() + "\n"
