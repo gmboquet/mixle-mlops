@@ -34,6 +34,7 @@ from ..auth import require_user
 router = APIRouter()
 
 _CACHE: dict[str, tuple[float, Any]] = {}
+_LIVE: dict[str, dict[str, int]] = {}  # per-task live counters since load: {"requests": n, "escalated": n}
 _LOCK = threading.Lock()
 
 
@@ -87,6 +88,10 @@ def decide(name: str, body: dict[str, Any], user: User = Depends(require_user)) 
         raise HTTPException(status_code=422, detail='body must be {"input": <text or record>}')
     model = _load(name)
     label = model.decide(_coerce_input(body["input"]))
+    with _LOCK:
+        live = _LIVE.setdefault(name, {"requests": 0, "escalated": 0})
+        live["requests"] += 1
+        live["escalated"] += int(label is None)
     return {"label": label, "escalate": label is None}
 
 
@@ -104,6 +109,34 @@ def feedback(name: str, body: dict[str, Any], user: User = Depends(require_user)
             f.write(line + "\n")
         count = sum(1 for _ in open(harvested))
     return {"harvested": count}
+
+
+@router.get("/tasks/{name}/health")
+def health(name: str, user: User = Depends(require_user)) -> dict[str, Any]:
+    """Is the calibration still holding on live traffic? Binomial test of the live escalation rate
+    against the verification baseline baked into the artifact. A drift alarm means the world changed —
+    escalations and cost are rising and the task should be re-solved; correctness is unaffected because
+    unsure inputs still go to the caller's teacher."""
+    model = _load(name)
+    baseline = ((getattr(model.task, "meta", None) or {}).get("solve", {}).get("verification") or {}).get(
+        "holdout_escalation_rate"
+    )
+    with _LOCK:
+        live = dict(_LIVE.get(name, {"requests": 0, "escalated": 0}))
+    out: dict[str, Any] = {
+        "task": name,
+        "requests": live["requests"],
+        "live_escalation_rate": (live["escalated"] / live["requests"]) if live["requests"] else None,
+        "baseline_escalation_rate": baseline,
+        "drifted": False,
+    }
+    if live["requests"] >= 20 and baseline is not None:
+        from scipy.stats import binomtest
+
+        p = float(binomtest(live["escalated"], live["requests"], max(min(float(baseline), 1.0), 1e-9)).pvalue)
+        out["escalation_p_value"] = p
+        out["drifted"] = p < 0.01
+    return out
 
 
 @router.get("/tasks/{name}/verification")

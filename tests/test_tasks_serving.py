@@ -136,3 +136,23 @@ def test_route_stack_serves_with_receipts(client):
     # a route over a non-deployed task must fail loudly at PUT time
     bad = client.put("/v1/routes/broken", json={"tiers": ["nope"], "costs": [0.1, 0.3]}, headers=h)
     assert bad.status_code == 404
+
+
+def test_health_alarms_on_shifted_traffic(client):
+    _deploy(client, name="router2")
+    h = _headers(client)
+    import mixle_mlops.gateway.routes.tasks as tasks_routes
+
+    tasks_routes._LIVE.clear()
+
+    for t in _tickets(80, seed=31):  # the training world: healthy
+        client.post("/v1/tasks/router2/decide", json={"input": t}, headers=h)
+    ok = client.get("/v1/tasks/router2/health", headers=h).json()
+    assert ok["requests"] == 80 and ok["baseline_escalation_rate"] is not None
+
+    shifted = [{"kind": f"zzz-{i}", "amount": 1.0e8 + i, "region": "??"} for i in range(120)]
+    for t in shifted:  # a different world: the OOD gate forces escalations far off baseline
+        client.post("/v1/tasks/router2/decide", json={"input": t}, headers=h)
+    bad = client.get("/v1/tasks/router2/health", headers=h).json()
+    assert bad["drifted"] is True
+    assert bad["live_escalation_rate"] > ok["baseline_escalation_rate"]
