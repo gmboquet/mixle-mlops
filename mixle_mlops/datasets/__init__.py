@@ -19,6 +19,7 @@ from __future__ import annotations
 from .code_tasks import (
     DEFAULT_FIELD_POOL,
     CodeTask,
+    Extraction,
     LLMTeacher,
     ReferenceTeacher,
     Trajectory,
@@ -29,7 +30,10 @@ from .code_tasks import (
     harvest,
     make_task,
     render_page,
+    repair_loop,
+    run_candidates,
     run_parser,
+    self_consistent,
     verify,
 )
 from .export import to_csv, to_jsonl, to_parquet
@@ -64,4 +68,8 @@ __all__ = [
     "verify",
     "harvest",
     "evaluate",
+    "Extraction",
+    "run_candidates",
+    "self_consistent",
+    "repair_loop",
 ]

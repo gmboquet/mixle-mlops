@@ -249,3 +249,67 @@ def test_llm_teacher_repair_turn_feeds_error_back():
     # the second call carried the failed code and the sandbox's error text back to the model
     assert len(calls[1]) == 3
     assert "broken" in calls[1][1]["content"] and "NameError" in calls[1][2]["content"]
+
+
+# --- inference-time serving: repair loop + label-free self-consistency (no ground truth at serving) ---------
+
+
+def test_repair_loop_recovers_from_a_crash_using_the_traceback():
+    from mixle_mlops.datasets.code_tasks import repair_loop
+
+    task = make_task(SCHEMA, 4, template="table", seed=3)
+    real = ReferenceTeacher()(task.html, SCHEMA)
+    calls = []
+
+    def codegen(html, schema, *, sample=0, failed_code=None, error=None):
+        calls.append((failed_code, error))
+        if failed_code is None:
+            return "def parse(html):\n    return this_is_undefined\n"  # first attempt crashes
+        return real  # given the error, emit working code
+
+    ext = repair_loop(codegen, task.html, SCHEMA, max_rounds=3)
+    assert ext.ran and ext.rounds == 2
+    assert verify(ext.records, task.records)[0]
+    assert calls[1][0] is not None and "NameError" in calls[1][1]  # the real traceback was fed back
+
+
+def test_repair_loop_abstains_when_it_never_runs():
+    from mixle_mlops.datasets.code_tasks import repair_loop
+
+    task = make_task(SCHEMA, 3, template="list", seed=1)
+    ext = repair_loop(lambda *a, **k: "def parse(html):\n    return boom\n", task.html, SCHEMA, max_rounds=3)
+    assert not ext.ran and ext.records is None and ext.rounds == 3  # honest abstain, never a wrong answer
+
+
+def test_self_consistency_returns_the_majority_and_reports_agreement():
+    from mixle_mlops.datasets.code_tasks import self_consistent
+
+    task = make_task(SCHEMA, 4, template="table", seed=5)
+    good = ReferenceTeacher()(task.html, SCHEMA)
+    empty = "def parse(html):\n    return []\n"  # runs, but a different (wrong) record-set
+
+    def codegen(html, schema, *, sample=0, **kw):
+        return good if sample in (0, 1, 2) else empty  # 3 agree on truth, 2 on []
+
+    ext = self_consistent(codegen, task.html, SCHEMA, n=5)
+    assert ext.ran and ext.n_ran == 5
+    assert verify(ext.records, task.records)[0]  # the majority record-set is the correct one
+    assert ext.agreement == pytest.approx(3 / 5)  # and its agreement share is reported as confidence
+
+
+def test_self_consistency_abstains_when_nothing_runs():
+    from mixle_mlops.datasets.code_tasks import self_consistent
+
+    task = make_task(SCHEMA, 3, seed=0)
+    ext = self_consistent(lambda *a, **k: "def parse(html):\n    return crash\n", task.html, SCHEMA, n=4)
+    assert not ext.ran and ext.records is None and ext.agreement == 0.0
+
+
+def test_self_consistency_high_agreement_tracks_correctness():
+    # the calibration claim in miniature: when all programs agree, the answer is the truth here
+    from mixle_mlops.datasets.code_tasks import self_consistent
+
+    tasks = [make_task(SCHEMA, 4, template=t, seed=s) for t in TEMPLATES for s in (0, 1)]
+    for task in tasks:
+        ext = self_consistent(ReferenceTeacher(), task.html, SCHEMA, n=4)
+        assert ext.agreement == 1.0 and verify(ext.records, task.records)[0]

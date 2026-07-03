@@ -53,6 +53,10 @@ __all__ = [
     "verify",
     "harvest",
     "evaluate",
+    "Extraction",
+    "run_candidates",
+    "self_consistent",
+    "repair_loop",
 ]
 
 TEMPLATES = ("table", "divs", "list")
@@ -316,7 +320,12 @@ class LLMTeacher:
         self._client = client or httpx.Client(base_url=base_url, headers=headers, timeout=timeout)
 
     def __call__(
-        self, html: str, schema: dict[str, str], failed_code: str | None = None, error: str | None = None
+        self,
+        html: str,
+        schema: dict[str, str],
+        failed_code: str | None = None,
+        error: str | None = None,
+        sample: int = 0,
     ) -> str:
         fields = ", ".join(f"{k} ({v})" for k, v in schema.items())
         ask = (
@@ -336,6 +345,7 @@ class LLMTeacher:
                 "messages": messages,
                 "temperature": self.temperature,
                 "max_tokens": self.max_tokens,
+                "seed": sample,  # distinct draws for best-of-N / self-consistency serving
             },
         )
         resp.raise_for_status()
@@ -459,6 +469,104 @@ def evaluate(
     return {"exact": exact / n, "mean_f1": f1s / n, "run_rate": ran / n}
 
 
+# --- inference-time serving: run the model's own code, and do it WITHOUT ground truth ------------------------
+#
+# At training time the verifier has the truth (the page was built from it). On a real page at serving time
+# it does NOT -- so the label-free signals are (a) does the code EXECUTE and return well-formed records, and
+# (b) do independently-sampled programs AGREE. Both are available with zero labels, and (b) doubles as a
+# calibrated confidence: high inter-program agreement predicts correctness (measured in the demo).
+
+
+def _records_key(records: Sequence[dict[str, Any]]) -> frozenset:
+    """An order-insensitive, hashable key for a whole record-set (a multiset of rows)."""
+    counter: dict[frozenset, int] = {}
+    for row in _canon(records):
+        counter[row] = counter.get(row, 0) + 1
+    return frozenset(counter.items())
+
+
+@dataclass(frozen=True)
+class Extraction:
+    """One serving result: the records returned (or ``None`` = abstain), with a label-free confidence.
+
+    ``ran`` = some program executed and returned well-formed records. ``agreement`` = fraction of the
+    executed programs that produced *this* record-set (1.0 for a single program; the majority share under
+    self-consistency). ``rounds`` = how many write->run->repair turns it took.
+    """
+
+    records: list[dict[str, Any]] | None
+    code: str
+    ran: bool
+    agreement: float
+    n_candidates: int
+    n_ran: int
+    rounds: int = 1
+
+
+def run_candidates(
+    codegen: Callable[..., str], html: str, schema: dict[str, str] | None = None, *, n: int = 5, timeout: float = 5.0
+) -> list[tuple[str, list[dict[str, Any]] | None]]:
+    """Sample ``n`` programs from ``codegen`` and run each; returns ``[(code, records_or_None), ...]``."""
+    out = []
+    for k in range(max(1, n)):
+        code = codegen(html, schema, sample=k)
+        parsed, _err = run_parser(code, html, timeout=timeout)
+        out.append((code, parsed))
+    return out
+
+
+def self_consistent(
+    codegen: Callable[..., str], html: str, schema: dict[str, str] | None = None, *, n: int = 5, timeout: float = 5.0
+) -> Extraction:
+    """Label-free serving: sample ``n`` programs, run them all, return the record-set the MOST agree on.
+
+    No ground truth is used -- the only signals are "did it run" and "do the programs agree". The winning
+    record-set's agreement share is a confidence you can threshold to abstain (return records but flag it).
+    """
+    cands = run_candidates(codegen, html, schema, n=n, timeout=timeout)
+    ran = [(code, recs) for code, recs in cands if recs is not None]
+    if not ran:
+        return Extraction(None, cands[-1][0] if cands else "", False, 0.0, len(cands), 0)
+    tally: dict[frozenset, int] = {}
+    rep: dict[frozenset, tuple[str, list[dict[str, Any]]]] = {}
+    for code, recs in ran:
+        key = _records_key(recs)
+        tally[key] = tally.get(key, 0) + 1
+        rep.setdefault(key, (code, recs))
+    win_key = max(tally, key=lambda k: tally[k])
+    code, recs = rep[win_key]
+    return Extraction(recs, code, True, tally[win_key] / len(ran), len(cands), len(ran))
+
+
+def repair_loop(
+    codegen: Callable[..., str],
+    html: str,
+    schema: dict[str, str] | None = None,
+    *,
+    max_rounds: int = 3,
+    timeout: float = 5.0,
+) -> Extraction:
+    """The write->run->fix loop: run the model's code; on a crash, feed the traceback back and let it retry.
+
+    This is inference-time use of the sandbox with NO labels -- the feedback is the actual Python error, the
+    same ``(failed_code, error)`` shape the repair trajectories trained on. Returns as soon as a program
+    executes to well-formed records; abstains (``ran=False``) if still crashing after ``max_rounds``.
+    """
+    failed_code = error = None
+    last_code = ""
+    for r in range(max(1, max_rounds)):
+        if r == 0:
+            code = codegen(html, schema, sample=0)
+        else:
+            code = codegen(html, schema, failed_code=failed_code, error=error)
+        last_code = code
+        parsed, err = run_parser(code, html, timeout=timeout)
+        if parsed is not None:
+            return Extraction(parsed, code, True, 1.0, r + 1, 1, rounds=r + 1)
+        failed_code, error = code, err
+    return Extraction(None, last_code, False, 0.0, max_rounds, 0, rounds=max_rounds)
+
+
 # --- a reference teacher: real code per template family (proves the machinery; swap in an LLM later) ----------
 
 
@@ -484,7 +592,12 @@ class ReferenceTeacher:
         return "{" + ", ".join(f'"{f}": ' + cast[casts[f]] % value(f, i) for i, f in enumerate(fields)) + "}"
 
     def __call__(
-        self, html: str, schema: dict[str, str], failed_code: str | None = None, error: str | None = None
+        self,
+        html: str,
+        schema: dict[str, str],
+        failed_code: str | None = None,
+        error: str | None = None,
+        sample: int = 0,  # ignored: this teacher is deterministic (so it can stand in as a codegen)
     ) -> str:
         key = hash(html)
         if self.fail_first and key not in self._seen and failed_code is None:
