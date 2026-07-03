@@ -100,3 +100,39 @@ def test_verification_record_is_served(client):
 def test_unknown_task_is_404(client):
     h = _headers(client)
     assert client.post("/v1/tasks/nope/decide", json={"input": "x"}, headers=h).status_code == 404
+
+
+def test_route_stack_serves_with_receipts(client):
+    """PUT a route over two deployed tasks, decide through it, and read the realized-cost report."""
+    h = _headers(client)
+    # two tiers of different strength on the same task
+    tiny = mixle_task.solve(_route, _tickets(300), alpha=0.2, ood=None, seed=0, epochs=60, hidden=[8], dim=64)
+    small = mixle_task.solve(_route, _tickets(300), alpha=0.1, ood=None, seed=1, epochs=250)
+    root = get_settings().registry_root / "tasks"
+    tiny.save(str(root / "tiny"))
+    small.save(str(root / "small"))
+
+    r = client.put("/v1/routes/stack", json={"tiers": ["tiny", "small"], "costs": [0.0001, 0.001, 0.03]}, headers=h)
+    assert r.status_code == 200
+
+    fresh = _tickets(120, seed=11)
+    n_frontier = 0
+    for t in fresh:
+        got = client.post("/v1/routes/stack/decide", json={"input": t}, headers=h).json()
+        assert got["tier"] in ("tiny", "small", "frontier")
+        if got["escalate"]:
+            n_frontier += 1
+            assert got["label"] is None  # the CALLER runs the frontier
+        else:
+            assert got["label"] is not None
+
+    rep = client.get("/v1/routes/stack/report", headers=h).json()
+    assert rep["requests"] == len(fresh)
+    assert sum(t["answered"] for t in rep["tiers"]) == len(fresh)
+    assert rep["tiers"][-1]["answered"] == n_frontier
+    local = rep["tiers"][0]["share"] + rep["tiers"][1]["share"]
+    assert local > 0.5 and rep["savings"] > 0.0
+
+    # a route over a non-deployed task must fail loudly at PUT time
+    bad = client.put("/v1/routes/broken", json={"tiers": ["nope"], "costs": [0.1, 0.3]}, headers=h)
+    assert bad.status_code == 404
