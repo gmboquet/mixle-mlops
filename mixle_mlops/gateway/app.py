@@ -32,6 +32,7 @@ from .routes import (
     mixle,
     models,
     rag,
+    tasks,
 )
 
 
@@ -156,6 +157,7 @@ def create_app() -> FastAPI:
     app.include_router(fine_tunes.router, prefix="/v1", tags=["fine_tunes"])  # /v1/fine_tunes (train + serve)
     app.include_router(cloud.router, prefix="/v1", tags=["cloud"])        # /v1/cloud/objectstore
     app.include_router(evolve.router, prefix="/v1", tags=["evolve"])      # /v1/evolve/* (self-evolution)
+    app.include_router(tasks.router, prefix="/v1", tags=["tasks"])        # /v1/tasks/* (solve() artifacts: decide-or-escalate)
     return app
 
 
