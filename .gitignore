@@ -18,3 +18,4 @@ frontend/.next/
 frontend/out/
 examples/tiny_parser_sft.jsonl
 examples/tiny_parser_results.json
+examples/clip_c100.npz
