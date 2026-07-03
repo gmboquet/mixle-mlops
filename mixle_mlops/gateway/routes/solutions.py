@@ -11,6 +11,8 @@ when it doesn't — the caller runs the original code and posts the answer back 
         classification: ``{"kind", "label", "escalate"}``      regression: ``{"kind", "value", "escalate"}``
         multilabel:     ``{"kind", "labels", "escalate"}``      structured: ``{"kind", "output", "escalate"}``
   * ``POST /solutions/{name}/feedback``    — ``{"input": ..., "answer": ...}`` -> harvested count.
+  * ``GET  /solutions/{name}/verification`` — the shape's trust surface straight from the manifest(s):
+        was it verified, at what alpha, how tight/agreeing on holdout — answerable from the endpoint alone.
 """
 
 from __future__ import annotations
@@ -117,6 +119,49 @@ def decide(name: str, body: dict[str, Any], user: User = Depends(require_user)) 
         return {"kind": kind, "labels": labels, "escalate": labels is None}
     out = obj.try_local(x)  # structured
     return {"kind": kind, "output": out, "escalate": out is None}
+
+
+def _verification_of(path: Path) -> dict[str, Any]:
+    """The shape's trust surface read straight from the manifest(s) — no model load needed."""
+    kind, _stamp = _sniff(path)
+    if kind == "structured":
+        schema = json.loads((path / "structured.json").read_text())
+        fields: dict[str, Any] = {}
+        for key in schema.get("cat", []):
+            meta = json.loads((path / "cat" / key / "manifest.json").read_text()).get("meta", {})
+            fields[key] = {"kind": "categorical", **(meta.get("solve", {}).get("verification") or {})}
+        for key in schema.get("num", []):
+            m = json.loads((path / "num" / key / "manifest.json").read_text()).get("meta", {}).get("regress", {})
+            fields[key] = {
+                "kind": "numeric",
+                **{k: m.get(k) for k in ("qhat", "tol", "alpha", "holdout_mae")},
+                "answers_locally": bool(m.get("qhat", float("inf")) <= m.get("tol", 0.0)),
+            }
+        return {"kind": kind, "fields": fields}
+    meta = json.loads((path / "manifest.json").read_text()).get("meta", {})
+    if kind == "regression":
+        m = meta.get("regress", {})
+        return {
+            "kind": kind,
+            **{k: m.get(k) for k in ("qhat", "tol", "alpha", "holdout_mae")},
+            "answers_locally": bool(m.get("qhat", float("inf")) <= m.get("tol", 0.0)),
+        }
+    if kind == "multilabel":
+        m = meta.get("multilabel", {})
+        return {"kind": kind, **{k: m.get(k) for k in ("labels", "alpha", "holdout_set_agreement")}}
+    solve_meta = meta.get("solve", {})
+    ver = solve_meta.get("verification")
+    if not ver:
+        raise HTTPException(status_code=404, detail="artifact carries no verification record")
+    return {"kind": kind, "ood": solve_meta.get("ood"), "verification": ver}
+
+
+@router.get("/solutions/{name}/verification")
+def verification(name: str, user: User = Depends(require_user)) -> dict[str, Any]:
+    path = _root() / name
+    if not path.is_dir():
+        raise HTTPException(status_code=404, detail=f"no deployed solution named {name!r}")
+    return _verification_of(path)
 
 
 @router.post("/solutions/{name}/feedback")

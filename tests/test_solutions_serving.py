@@ -146,6 +146,25 @@ class TestSolutionsServing:
         harvested = get_settings().registry_root / "solutions" / "pricer" / "harvested.jsonl"
         assert harvested.exists() and '"answer": 2520.0' in harvested.read_text()
 
+    def test_verification_surfaces_each_shapes_trust(self, client):
+        h = _headers(client)
+        sol_r = _deploy_regression()
+        _deploy_multilabel()
+        _deploy_structured()
+
+        v = client.get("/v1/solutions/pricer/verification", headers=h).json()
+        assert v["kind"] == "regression" and v["answers_locally"] is True
+        assert v["qhat"] == pytest.approx(float(sol_r.qhat), abs=1e-9)
+
+        v = client.get("/v1/solutions/flagger/verification", headers=h).json()
+        assert v["kind"] == "multilabel" and set(v["labels"]) == {"high-value", "money", "eu-rules"}
+        assert 0.0 <= v["holdout_set_agreement"] <= 1.0
+
+        v = client.get("/v1/solutions/enricher/verification", headers=h).json()
+        assert v["kind"] == "structured" and set(v["fields"]) == {"team", "price"}
+        assert v["fields"]["team"]["kind"] == "categorical" and "holdout_agreement" in v["fields"]["team"]
+        assert v["fields"]["price"]["kind"] == "numeric" and v["fields"]["price"]["answers_locally"] is True
+
     def test_unknown_solution_404s(self, client):
         h = _headers(client)
         assert client.post("/v1/solutions/nope/decide", json={"input": "x"}, headers=h).status_code == 404
