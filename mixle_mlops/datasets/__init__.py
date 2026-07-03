@@ -9,9 +9,25 @@ truth by construction), or drive an LLM to emit structured JSON records against 
 * :mod:`export` — :func:`to_csv` / :func:`to_jsonl` / :func:`to_parquet` materialising a sampled dataset
   into the pluggable :class:`~mixle_mlops.multimodal.store.BlobStore`.
 * :mod:`models` — the :class:`DatasetArtifact` table recording each generated dataset.
+* :mod:`code_tasks` — the verified data factory for *code-writing* tasks (train a model to parse HTML by
+  writing programs): pages rendered from known records (labels by construction), a subprocess sandbox,
+  and execution-rejection-sampled ``(page -> code)`` + repair trajectories ready for ``/v1/fine_tunes``.
 """
+
 from __future__ import annotations
 
+from .code_tasks import (
+    CodeTask,
+    ReferenceTeacher,
+    Trajectory,
+    VerifiedDataset,
+    evaluate,
+    harvest,
+    make_task,
+    render_page,
+    run_parser,
+    verify,
+)
 from .export import to_csv, to_jsonl, to_parquet
 from .generate import (
     DatasetSpec,
@@ -30,4 +46,14 @@ __all__ = [
     "to_csv",
     "to_jsonl",
     "to_parquet",
+    "CodeTask",
+    "Trajectory",
+    "VerifiedDataset",
+    "ReferenceTeacher",
+    "make_task",
+    "render_page",
+    "run_parser",
+    "verify",
+    "harvest",
+    "evaluate",
 ]
