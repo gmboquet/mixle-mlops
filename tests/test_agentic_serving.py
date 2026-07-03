@@ -143,3 +143,27 @@ def test_planner_serves_plans(client):
     assert 0.0 <= ver["plan_agreement"] <= 1.0
 
     assert client.post("/v1/planners/nope/plan", json={"input": "x"}, headers=h).status_code == 404
+
+
+def test_generative_planner_serves(client):
+    from mixle.task import ToolSpec, sft_planner
+
+    tools = [ToolSpec("lookup_order", ["order_id"]), ToolSpec("notify", ["user"])]
+    gp = sft_planner(_plan_teacher, _plan_requests(160), tools, seed=0, epochs=25, d_model=64, n_layer=2)
+    gp.save(str(get_settings().registry_root / "genplanners" / "writer"))
+    h = _headers(client)
+
+    assert client.get("/v1/genplanners", headers=h).json() == {"genplanners": ["writer"]}
+
+    # served plans match the local artifact exactly on fresh traffic, escalations included
+    for r in _plan_requests(25, seed=13):
+        got = client.post("/v1/genplanners/writer/plan", json={"input": r}, headers=h).json()
+        want = gp.try_plan(r)
+        if want is None:
+            assert got == {"plan": None, "escalate": True}
+        else:
+            assert got == {"plan": want, "escalate": False}
+
+    ver = client.get("/v1/genplanners/writer/verification", headers=h).json()
+    assert ver["kind"] == "genplanner/v1"
+    assert 0.0 <= ver["plan_agreement"] <= 1.0

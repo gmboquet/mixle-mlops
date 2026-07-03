@@ -32,7 +32,7 @@ router = APIRouter()
 _CACHE: dict[tuple[str, str], tuple[float, Any]] = {}
 _LOCK = threading.Lock()
 
-_MANIFEST = {"toolcallers": "toolcaller.json", "planners": "planner.json"}
+_MANIFEST = {"toolcallers": "toolcaller.json", "planners": "planner.json", "genplanners": "genplanner.json"}
 
 
 def _root(kind: str) -> Path:
@@ -54,9 +54,10 @@ def _load(kind: str, name: str) -> Any:
         if hit is not None and hit[0] == stamp:
             return hit[1]
     try:
-        from mixle.task import Planner, ToolCaller
+        from mixle.task import GenerativePlanner, Planner, ToolCaller
 
-        obj = (ToolCaller if kind == "toolcallers" else Planner).load(str(path), _never_teacher)
+        loader = {"toolcallers": ToolCaller, "planners": Planner, "genplanners": GenerativePlanner}[kind]
+        obj = loader.load(str(path), _never_teacher)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001 - a broken artifact must 500 with the reason
@@ -92,7 +93,7 @@ def _verification(kind: str, name: str) -> dict[str, Any]:
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"no deployed {kind[:-1]} named {name!r}")
     m = json.loads(path.read_text())
-    keep = ("selection_agreement", "plan_agreement", "tools", "max_steps", "kind")
+    keep = ("selection_agreement", "plan_agreement", "tools", "max_steps", "conf_floor", "constrained", "kind")
     return {k: m[k] for k in keep if k in m}
 
 
@@ -134,6 +135,31 @@ def plan(name: str, body: dict[str, Any], user: User = Depends(require_user)) ->
     if local is None:
         return {"plan": None, "escalate": True}
     return {"plan": local["plan"], "escalate": False}
+
+
+@router.get("/genplanners")
+def list_genplanners(user: User = Depends(require_user)) -> dict[str, Any]:
+    return _list("genplanners")
+
+
+@router.post("/genplanners/{name}/plan")
+def genplan(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
+    if "input" not in body:
+        raise HTTPException(status_code=422, detail='body must be {"input": <request text>}')
+    local = _load("genplanners", name).try_plan(str(body["input"]))
+    if local is None:
+        return {"plan": None, "escalate": True}
+    return {"plan": local, "escalate": False}
+
+
+@router.post("/genplanners/{name}/feedback")
+def genplanner_feedback(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
+    return _feedback("genplanners", name, body, "plan")
+
+
+@router.get("/genplanners/{name}/verification")
+def genplanner_verification(name: str, user: User = Depends(require_user)) -> dict[str, Any]:
+    return _verification("genplanners", name)
 
 
 @router.post("/planners/{name}/feedback")
