@@ -18,6 +18,7 @@ from ..models.task_cascade import register_demo_task_model
 from ..storage.db import init_db
 from .routes import (
     accounts,
+    agentic,
     cache,
     chat,
     cloud,
@@ -160,6 +161,7 @@ def create_app() -> FastAPI:
     app.include_router(evolve.router, prefix="/v1", tags=["evolve"])      # /v1/evolve/* (self-evolution)
     app.include_router(tasks.router, prefix="/v1", tags=["tasks"])        # /v1/tasks/* (solve() artifacts: decide-or-escalate)
     app.include_router(route.router, prefix="/v1", tags=["routes"])       # /v1/routes/* (calibrated N-tier model routing)
+    app.include_router(agentic.router, prefix="/v1", tags=["agentic"])    # /v1/toolcallers/* + /v1/planners/* (distilled agent students)
     return app
 
 
