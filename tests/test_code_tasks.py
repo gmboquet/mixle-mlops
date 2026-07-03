@@ -188,3 +188,64 @@ def test_evaluate_best_of_k_uses_the_free_verifier_at_inference():
 
     assert evaluate(flaky_student, tasks, best_of=1)["exact"] == 0.0
     assert evaluate(flaky_student, tasks, best_of=3)["exact"] == 1.0
+
+
+# --- the LLM teacher slot: gateway plumbing + code extraction; execution still judges ------------------
+
+
+def test_extract_code_prefers_fenced_blocks():
+    from mixle_mlops.datasets.code_tasks import extract_code
+
+    fenced = "Here you go:\n```python\ndef parse(html):\n    return []\n```\nHope that helps!"
+    assert extract_code(fenced) == "def parse(html):\n    return []\n"
+    bare = "def parse(html):\n    return []"
+    assert extract_code(bare) == "def parse(html):\n    return []\n"
+    anon_fence = "```\ndef parse(html):\n    return []\n```"
+    assert extract_code(anon_fence) == "def parse(html):\n    return []\n"
+
+
+def test_llm_teacher_end_to_end_with_mock_gateway():
+    import httpx
+
+    from mixle_mlops.datasets.code_tasks import LLMTeacher
+
+    task = make_task(SCHEMA, 3, template="table", seed=5)
+    real_code = ReferenceTeacher()(task.html, SCHEMA)
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        seen.append(payload)
+        # a chatty model reply wrapping REAL code in a fence, prose on both sides
+        content = f"Sure! Here is the parser:\n```python\n{real_code}```\nLet me know if it works."
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="http://test/v1")
+    teacher = LLMTeacher("smollm2", client=client)
+    ds = harvest(teacher, [task])
+    assert ds.yield_rate == 1.0  # extracted code EXECUTED to the truth
+    assert seen[0]["model"] == "smollm2"
+    assert task.html in seen[0]["messages"][0]["content"]
+
+
+def test_llm_teacher_repair_turn_feeds_error_back():
+    import httpx
+
+    from mixle_mlops.datasets.code_tasks import LLMTeacher
+
+    task = make_task(SCHEMA, 3, template="list", seed=6)
+    real_code = ReferenceTeacher()(task.html, SCHEMA)
+    calls: list[list] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        messages = json.loads(request.content)["messages"]
+        calls.append(messages)
+        code = "def parse(html):\n    return broken\n" if len(messages) == 1 else real_code
+        return httpx.Response(200, json={"choices": [{"message": {"content": f"```python\n{code}```"}}]})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="http://test/v1")
+    ds = harvest(LLMTeacher("smollm2", client=client), [task], attempts=2)
+    assert ds.yield_rate == 1.0 and len(ds.repairs) == 1
+    # the second call carried the failed code and the sandbox's error text back to the model
+    assert len(calls[1]) == 3
+    assert "broken" in calls[1][1]["content"] and "NameError" in calls[1][2]["content"]

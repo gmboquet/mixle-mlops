@@ -18,10 +18,12 @@ from __future__ import annotations
 
 from .code_tasks import (
     CodeTask,
+    LLMTeacher,
     ReferenceTeacher,
     Trajectory,
     VerifiedDataset,
     evaluate,
+    extract_code,
     harvest,
     make_task,
     render_page,
@@ -50,6 +52,8 @@ __all__ = [
     "Trajectory",
     "VerifiedDataset",
     "ReferenceTeacher",
+    "LLMTeacher",
+    "extract_code",
     "make_task",
     "render_page",
     "run_parser",

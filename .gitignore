@@ -16,3 +16,4 @@ mixle_data/
 node_modules/
 frontend/.next/
 frontend/out/
+examples/tiny_parser_sft.jsonl

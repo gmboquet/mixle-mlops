@@ -26,6 +26,7 @@ template families (or folding in scraped pages with verified parses), not by tru
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -41,6 +42,8 @@ __all__ = [
     "Trajectory",
     "VerifiedDataset",
     "ReferenceTeacher",
+    "LLMTeacher",
+    "extract_code",
     "TEMPLATES",
     "make_task",
     "render_page",
@@ -232,6 +235,67 @@ def _prompt(task: CodeTask) -> str:
         "Write a Python function parse(html) that extracts every record from this page as a list of "
         f"dicts with keys: {schema}. Return only code.\n\n{task.html}"
     )
+
+
+def extract_code(text: str) -> str:
+    """Pull the program out of an LLM reply: the first fenced code block, else the raw text."""
+    m = re.search(r"```(?:python)?\s*\n(.*?)```", text, re.S) or re.search(r"```(?:python)?\s*(.*?)```", text, re.S)
+    return (m.group(1) if m else text).strip() + "\n"
+
+
+class LLMTeacher:
+    """A teacher backed by any OpenAI-compatible chat endpoint (the mixle-mlops gateway included).
+
+    Drops into :func:`harvest`'s teacher slot: it prompts the model for ``parse(html)`` code (feeding
+    back the failed code + sandbox error on repair calls), extracts the first fenced block, and returns
+    it -- the EXECUTION verifier still decides what enters the dataset, so a sloppy teacher just lowers
+    ``yield_rate``, never correctness. Pass ``client`` to reuse a session or to inject a test transport.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        base_url: str = "http://localhost:8000/v1",
+        api_key: str | None = None,
+        temperature: float = 0.2,
+        max_tokens: int = 640,
+        timeout: float = 120.0,
+        client: Any = None,
+    ) -> None:
+        import httpx
+
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self._client = client or httpx.Client(base_url=base_url, headers=headers, timeout=timeout)
+
+    def __call__(
+        self, html: str, schema: dict[str, str], failed_code: str | None = None, error: str | None = None
+    ) -> str:
+        fields = ", ".join(f"{k} ({v})" for k, v in schema.items())
+        ask = (
+            "Write a Python function parse(html) that extracts every record from this HTML page as a "
+            f"list of dicts with keys: {fields}. Use only the standard library. Return only code.\n\n{html}"
+        )
+        messages = [{"role": "user", "content": ask}]
+        if failed_code is not None:
+            messages.append({"role": "assistant", "content": f"```python\n{failed_code}```"})
+            messages.append(
+                {"role": "user", "content": f"That failed when executed: {error}\nFix it. Return only code."}
+            )
+        resp = self._client.post(
+            "/chat/completions",
+            json={
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+            },
+        )
+        resp.raise_for_status()
+        return extract_code(resp.json()["choices"][0]["message"]["content"])
 
 
 @dataclass(frozen=True)
