@@ -45,7 +45,9 @@ __all__ = [
     "LLMTeacher",
     "extract_code",
     "TEMPLATES",
+    "DEFAULT_FIELD_POOL",
     "make_task",
+    "build_tasks",
     "render_page",
     "run_parser",
     "verify",
@@ -153,6 +155,48 @@ def make_task(
     template = template or TEMPLATES[rng.randint(len(TEMPLATES))]
     records = _sample_records(schema, n_rows, rng)
     return CodeTask(render_page(records, template, seed=seed, noise=noise), dict(schema), records, template, seed)
+
+
+DEFAULT_FIELD_POOL = {
+    "name": "str",
+    "price": "float",
+    "qty": "int",
+    "city": "str",
+    "score": "float",
+    "rank": "int",
+    "code": "str",
+    "mass": "float",
+}
+
+
+def build_tasks(
+    n: int,
+    *,
+    pool: dict[str, str] | None = None,
+    fields_per_task: int = 3,
+    n_rows: int = 4,
+    templates: Sequence[str] | None = None,
+    noise: float = 0.5,
+    seed: int = 0,
+) -> list[CodeTask]:
+    """Sample ``n`` tasks: each a random field-subset of ``pool`` rendered in a random template.
+
+    The generator is the curriculum -- ``pool`` width, ``fields_per_task``, ``templates``, and ``noise``
+    are the difficulty knobs. Deterministic in ``seed``; every task carries its ground-truth records.
+    """
+    pool = pool or DEFAULT_FIELD_POOL
+    names = list(pool)
+    if fields_per_task > len(names):
+        raise ValueError(f"fields_per_task={fields_per_task} exceeds pool size {len(names)}")
+    templates = tuple(templates or TEMPLATES)
+    rng = np.random.RandomState(seed)
+    tasks = []
+    for i in range(n):
+        chosen = list(rng.choice(names, size=fields_per_task, replace=False))
+        schema = {k: pool[k] for k in chosen}
+        tpl = templates[rng.randint(len(templates))]
+        tasks.append(make_task(schema, n_rows, template=tpl, seed=int(rng.randint(1 << 31)), noise=noise))
+    return tasks
 
 
 # --- the sandbox: run candidate parser code against a page ---------------------------------------------------
@@ -324,17 +368,27 @@ class VerifiedDataset:
     def repairs(self) -> list[Trajectory]:
         return [t for t in self.trajectories if t.failed_code is not None]
 
+    def jsonl_rows(self) -> list[dict[str, Any]]:
+        """The prompt/completion rows (each verified pair, plus a repair turn feeding the error back)."""
+        rows: list[dict[str, Any]] = []
+        for t in self.trajectories:
+            rows.append({"prompt": _prompt(t.task), "completion": t.code, "f1": t.f1})
+            if t.failed_code is not None:
+                repair_prompt = (
+                    _prompt(t.task)
+                    + f"\n\nA previous attempt failed.\nCode:\n{t.failed_code}\nError: {t.feedback}\nFix it."
+                )
+                rows.append({"prompt": repair_prompt, "completion": t.code, "f1": t.f1})
+        return rows
+
+    def jsonl_bytes(self) -> bytes:
+        """The SFT corpus as JSONL bytes -- what a blob store / ``/v1/fine_tunes`` upload wants."""
+        return "".join(json.dumps(r) + "\n" for r in self.jsonl_rows()).encode()
+
     def save_jsonl(self, path: str) -> str:
         """Write prompt/completion pairs (plus repair turns with the error fed back) for any SFT loop."""
-        with open(path, "w") as f:
-            for t in self.trajectories:
-                f.write(json.dumps({"prompt": _prompt(t.task), "completion": t.code, "f1": t.f1}) + "\n")
-                if t.failed_code is not None:
-                    repair_prompt = (
-                        _prompt(t.task)
-                        + f"\n\nA previous attempt failed.\nCode:\n{t.failed_code}\nError: {t.feedback}\nFix it."
-                    )
-                    f.write(json.dumps({"prompt": repair_prompt, "completion": t.code, "f1": t.f1}) + "\n")
+        with open(path, "wb") as f:
+            f.write(self.jsonl_bytes())
         return path
 
 

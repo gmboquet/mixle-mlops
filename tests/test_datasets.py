@@ -6,6 +6,7 @@ echo-source test that tolerates the echo model's inability to produce JSON).
 Self-contained: it builds the app via ``create_app()``, includes the datasets router itself, and registers
 the demo model on ``app.state.registry`` inside the TestClient context — no dependence on app.py edits.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -52,12 +53,8 @@ class _JSONAdapter(ModelAdapter):
 
     async def stream(self, req: ChatRequest) -> AsyncIterator[ChatCompletionChunk]:
         text = json.dumps(self._records)
-        yield ChatCompletionChunk(
-            model=req.model, choices=[ChatChunkChoice(delta=ChoiceDelta(role="assistant"))]
-        )
-        yield ChatCompletionChunk(
-            model=req.model, choices=[ChatChunkChoice(delta=ChoiceDelta(content=text))]
-        )
+        yield ChatCompletionChunk(model=req.model, choices=[ChatChunkChoice(delta=ChoiceDelta(role="assistant"))])
+        yield ChatCompletionChunk(model=req.model, choices=[ChatChunkChoice(delta=ChoiceDelta(content=text))])
         yield ChatCompletionChunk(
             model=req.model, choices=[ChatChunkChoice(delta=ChoiceDelta(), finish_reason="stop")]
         )
@@ -71,9 +68,9 @@ def client(tmp_path, monkeypatch):
     reset_blob_store()
     datasets_routes._table_ready = False
     app = create_app()
-    app.include_router(datasets_routes.router, prefix="/v1")   # the integrator does this in app.py
+    app.include_router(datasets_routes.router, prefix="/v1")  # the integrator does this in app.py
     with TestClient(app) as c:
-        register_demo_mixle_model(c.app.state.registry)        # demo mixle model on the live registry
+        register_demo_mixle_model(c.app.state.registry)  # demo mixle model on the live registry
         c.app.state.registry.register(
             _JSONAdapter("json-llm", [{"city": "Paris", "pop": 2}, {"city": "Rome", "pop": 3}])
         )
@@ -97,7 +94,7 @@ def test_generate_from_mixle_unit():
     assert ds.source == "mixle"
     assert ds.schema  # a non-empty inferred schema
     # the demo model is a 1-D Gaussian mixture -> a single numeric column
-    (col, typ), = ds.schema.items()
+    ((col, typ),) = ds.schema.items()
     assert typ == "number"
     # deterministic under the seed
     ds2 = generate_from_mixle(adapter, n=25, seed=7, model_id="m")
@@ -140,6 +137,7 @@ def test_to_parquet_unit(tmp_path, monkeypatch):
     import io as _io
 
     import pandas as pd
+
     _record, data = get_blob_store().get(res["id"])
     frame = pd.read_parquet(_io.BytesIO(data))
     assert len(frame) == 12
@@ -153,7 +151,7 @@ def test_generate_from_llm_unit():
     ds = asyncio.run(generate_from_llm(adapter, schema, n=2, model_id="json-llm"))
     assert ds.n_rows == 2
     assert ds.schema == schema
-    assert ds.rows[0] == {"city": "Paris", "pop": 2}     # 'pop' coerced string->int
+    assert ds.rows[0] == {"city": "Paris", "pop": 2}  # 'pop' coerced string->int
     assert isinstance(ds.rows[0]["pop"], int)
 
 
@@ -187,7 +185,7 @@ def test_generate_route_mixle_jsonl(client):
     assert body["source"] == "mixle"
     assert body["n_rows"] == 30
     assert body["format"] == "jsonl"
-    assert body["schema"]                              # non-empty schema recorded
+    assert body["schema"]  # non-empty schema recorded
     assert body["url"] and body["blob_id"]
 
     # the bytes are in the blob store: N jsonl rows
@@ -234,7 +232,7 @@ def test_generate_route_echo_relaxed(client):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["schema"] == {"a": "integer"}
-    assert body["n_rows"] >= 0                          # echo emits no JSON -> 0 rows, tolerated
+    assert body["n_rows"] >= 0  # echo emits no JSON -> 0 rows, tolerated
 
 
 def test_generate_route_requires_auth(client):
@@ -244,17 +242,13 @@ def test_generate_route_requires_auth(client):
 
 def test_generate_route_unknown_model(client):
     headers = {"Authorization": f"Bearer {_key(client, 'nf@t.com')}"}
-    r = client.post(
-        "/v1/datasets/generate", headers=headers, json={"source": "mixle", "model": "nope", "n": 5}
-    )
+    r = client.post("/v1/datasets/generate", headers=headers, json={"source": "mixle", "model": "nope", "n": 5})
     assert r.status_code == 404
 
 
 def test_generate_route_llm_requires_schema(client):
     headers = {"Authorization": f"Bearer {_key(client, 'ns@t.com')}"}
-    r = client.post(
-        "/v1/datasets/generate", headers=headers, json={"source": "llm", "model": "json-llm", "n": 2}
-    )
+    r = client.post("/v1/datasets/generate", headers=headers, json={"source": "llm", "model": "json-llm", "n": 2})
     assert r.status_code == 422
 
 
@@ -271,3 +265,46 @@ class _FakeRegistry:
 
     def get(self, name):
         return self._m[name]
+
+
+# --------------------------------------------------------------------------------------------------------
+# code-task factory route: harvest execution-verified (page -> parser code) pairs for /v1/fine_tunes
+# --------------------------------------------------------------------------------------------------------
+
+
+def test_code_tasks_route_reference_teacher(client):
+    headers = {"Authorization": f"Bearer {_key(client, 'code@t.com')}"}
+    r = client.post(
+        "/v1/datasets/code_tasks",
+        headers=headers,
+        json={"teacher": "reference", "n_tasks": 12, "fields_per_task": 3, "seed": 0},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["source"] == "code_tasks"
+    assert body["model"] is None  # reference teacher is not a served model
+    assert body["format"] == "jsonl"
+    # the rule-based teacher verifies everywhere, so every task yields a pair
+    assert body["harvest"]["attempted"] == 12
+    assert body["harvest"]["yield_rate"] == 1.0
+    assert body["n_rows"] == body["harvest"]["pairs"] >= 12
+
+    # the stored bytes are real SFT rows whose completion is code (prompt carries the page)
+    _record, data = get_blob_store().get(body["artifact"]["id"])
+    rows = [json.loads(ln) for ln in data.decode().splitlines() if ln.strip()]
+    assert len(rows) == body["n_rows"]
+    assert all("parse" in row["completion"] and "<" in row["prompt"] for row in rows)
+
+    # and it round-trips through the artifact GET like any other dataset
+    g = client.get(f"/v1/datasets/{body['id']}", headers=headers)
+    assert g.status_code == 200 and g.json()["source"] == "code_tasks"
+
+
+def test_code_tasks_route_rejects_impossible_schema(client):
+    headers = {"Authorization": f"Bearer {_key(client, 'bad@t.com')}"}
+    r = client.post(
+        "/v1/datasets/code_tasks",
+        headers=headers,
+        json={"teacher": "reference", "n_tasks": 4, "fields_per_task": 9, "pool": {"a": "int", "b": "str"}},
+    )
+    assert r.status_code == 422  # 9 fields requested from a 2-field pool
