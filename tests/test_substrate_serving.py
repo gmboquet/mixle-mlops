@@ -200,3 +200,70 @@ class TestSubstrateServing:
             headers=h,
         )
         assert p.status_code == 200 and p.json()["n"] == 0
+
+
+def _admin_headers(client, email="admin@t.com"):
+    from sqlmodel import Session
+
+    from mixle_mlops.accounts import service as acct
+    from mixle_mlops.storage.db import get_engine
+
+    with Session(get_engine()) as s:
+        user = acct.create_user(s, email, "pw12345", is_admin=True)
+        _rec, raw = acct.create_api_key(s, user)
+    return {"Authorization": f"Bearer {raw}"}
+
+
+class TestGovernanceServing:
+    def test_propose_pending_and_admin_approve(self, client):
+        h = _headers(client)
+        r = client.post(
+            "/v1/substrate/gov/items",
+            json={"kind": "artifact", "text": "org ontology term", "scope": "teamA"},
+            headers=h,
+        )
+        item_id = r.json()["id"]
+        # propose to org (any user)
+        p = client.post("/v1/substrate/gov/propose", json={"ids": [item_id], "to": "org"}, headers=h)
+        assert p.status_code == 200 and p.json()["n"] == 1
+        # it shows up as pending
+        pend = client.get("/v1/substrate/gov/pending", params={"to": "org"}, headers=h)
+        assert any(i["id"] == item_id for i in pend.json()["pending"])
+        # a non-admin cannot approve
+        assert client.post("/v1/substrate/gov/approve", json={"item_id": item_id}, headers=h).status_code == 403
+        # an admin approves -> promoted to org
+        admin = _admin_headers(client)
+        a = client.post("/v1/substrate/gov/approve", json={"item_id": item_id}, headers=admin)
+        assert a.status_code == 200 and a.json()["approved"] is True
+        # the item is now in the org scope
+        import mixle_mlops.gateway.routes.substrate as sub_routes
+
+        sub_routes._CACHE.clear()
+        rp = client.post("/v1/substrate/gov/retrieve", json={"query": "ontology term", "scope": "org"}, headers=h)
+        assert len(rp.json()["items"]) >= 1
+
+    def test_admin_reject_keeps_item_private(self, client):
+        h = _headers(client)
+        r = client.post(
+            "/v1/substrate/gov/items",
+            json={"kind": "artifact", "text": "rejected term", "scope": "teamB"},
+            headers=h,
+        )
+        item_id = r.json()["id"]
+        client.post("/v1/substrate/gov/propose", json={"ids": [item_id], "to": "org"}, headers=h)
+        admin = _admin_headers(client, email="admin2@t.com")
+        rej = client.post("/v1/substrate/gov/reject", json={"item_id": item_id, "reason": "dup"}, headers=admin)
+        assert rej.status_code == 200 and rej.json()["rejected"] is True
+        # not promoted, and no longer pending
+        assert client.get("/v1/substrate/gov/pending", headers=admin).json()["pending"] == []
+
+    def test_propose_requires_ids(self, client):
+        h = _headers(client)
+        client.post("/v1/substrate/gov/documents", json={"docs": ["x"]}, headers=h)
+        assert client.post("/v1/substrate/gov/propose", json={}, headers=h).status_code == 422
+
+    def test_reject_requires_admin(self, client):
+        h = _headers(client)
+        r = client.post("/v1/substrate/gov/items", json={"kind": "text", "text": "t", "scope": "teamA"}, headers=h)
+        client.post("/v1/substrate/gov/propose", json={"ids": [r.json()["id"]], "to": "org"}, headers=h)
+        assert client.post("/v1/substrate/gov/reject", json={"item_id": r.json()["id"]}, headers=h).status_code == 403

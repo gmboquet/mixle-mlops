@@ -228,3 +228,75 @@ def publish_route(name: str, body: dict[str, Any], user: User = Depends(require_
     )
     _persist(name, sub)
     return {"published": published, "n": len(published), "to": str(body.get("to", "public"))}
+
+
+def _actor(user: User) -> str:
+    return str(getattr(user, "email", None) or getattr(user, "id", "api"))
+
+
+@router.post("/substrate/{name}/propose")
+def propose_route(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
+    """Propose items for promotion into a curated scope (P3) -- pending until an admin approves.
+
+    ``{"ids": [...], "to": "org"}`` marks items pending; they are NOT yet visible in the target scope.
+    Any authenticated user may propose; only an admin may :func:`approve`."""
+    ids = body.get("ids")
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(status_code=422, detail='body must be {"ids": [<item id>, ...], "to": <scope>}')
+    from mixle.substrate.governance import propose
+
+    sub = _shard(name)
+    proposed = propose(sub, [str(i) for i in ids], to=str(body.get("to", "org")), by=_actor(user))
+    _persist(name, sub)
+    return {"proposed": proposed, "n": len(proposed), "to": str(body.get("to", "org"))}
+
+
+@router.get("/substrate/{name}/pending")
+def pending_route(name: str, to: str | None = None, user: User = Depends(require_user)) -> dict[str, Any]:
+    """List items awaiting promotion approval (optionally to a specific scope)."""
+    from mixle.substrate.governance import pending
+
+    sub = _shard(name)
+    items = pending(sub, to=to)
+    return {"pending": [{"id": i.id, "kind": i.kind, "proposal": i.provenance.get("proposal")} for i in items]}
+
+
+@router.post("/substrate/{name}/approve")
+def approve_route(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
+    """Promote a pending item into its proposed scope -- ADMIN ONLY (the promotion gate, P3).
+
+    The approver ACL is the server's own admin flag, not a client-supplied list: only a user with
+    ``is_admin`` may approve, so promotion into a curated scope cannot be self-authorized."""
+    item_id = body.get("item_id")
+    if not item_id:
+        raise HTTPException(status_code=422, detail='body must be {"item_id": ...}')
+    if not bool(getattr(user, "is_admin", False)):
+        raise HTTPException(status_code=403, detail="only an admin may approve a promotion")
+    from mixle.substrate.governance import Governance, approve
+
+    sub = _shard(name)
+    item = sub.get(str(item_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"no item {item_id!r}")
+    prop = item.provenance.get("proposal") or {}
+    target = str(body.get("to") or prop.get("to") or "org")
+    gov = Governance().grant(_actor(user), target)  # admin is an approver for the target scope
+    ok = approve(sub, str(item_id), by=_actor(user), governance=gov, to=target)
+    _persist(name, sub)
+    return {"approved": ok, "item_id": item_id, "to": target}
+
+
+@router.post("/substrate/{name}/reject")
+def reject_route(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
+    """Refuse a pending promotion (ADMIN ONLY) -- the item stays put; the refusal is recorded."""
+    item_id = body.get("item_id")
+    if not item_id:
+        raise HTTPException(status_code=422, detail='body must be {"item_id": ...}')
+    if not bool(getattr(user, "is_admin", False)):
+        raise HTTPException(status_code=403, detail="only an admin may reject a promotion")
+    from mixle.substrate.governance import reject
+
+    sub = _shard(name)
+    ok = reject(sub, str(item_id), by=_actor(user), reason=str(body.get("reason", "")))
+    _persist(name, sub)
+    return {"rejected": ok, "item_id": item_id}
