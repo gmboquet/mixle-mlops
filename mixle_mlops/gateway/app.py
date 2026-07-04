@@ -35,6 +35,7 @@ from .routes import (
     rag,
     route,
     solutions,
+    substrate,
     tasks,
 )
 
@@ -164,6 +165,7 @@ def create_app() -> FastAPI:
     app.include_router(route.router, prefix="/v1", tags=["routes"])       # /v1/routes/* (calibrated N-tier model routing)
     app.include_router(agentic.router, prefix="/v1", tags=["agentic"])    # /v1/toolcallers/* + /v1/planners/* (distilled agent students)
     app.include_router(solutions.router, prefix="/v1", tags=["solutions"])  # /v1/solutions/* (every solve shape, kind-sniffed)
+    app.include_router(substrate.router, prefix="/v1", tags=["substrate"])  # /v1/substrate/* (knowledge store + all-data RAG)
     return app
 
 
