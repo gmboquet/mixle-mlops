@@ -1,6 +1,7 @@
 """The model contract. Every backend — a mixle probabilistic model or an open LLM — implements ``ModelAdapter``,
 speaking an OpenAI-compatible chat interface plus optional mixle 'distribution/decision' capabilities advertised
 through ``capabilities()``. This uniform surface is what lets the gateway host and *compose* both kinds."""
+
 from __future__ import annotations
 
 import time
@@ -21,7 +22,7 @@ class TextPart(BaseModel):
 
 class ImagePart(BaseModel):
     type: Literal["image_url"] = "image_url"
-    image_url: dict[str, Any]            # {"url": "data:image/png;base64,..."  or an https URL}
+    image_url: dict[str, Any]  # {"url": "data:image/png;base64,..."  or an https URL}
 
 
 ContentPart = TextPart | ImagePart
@@ -31,7 +32,7 @@ ContentPart = TextPart | ImagePart
 class FunctionDef(BaseModel):
     name: str
     description: str | None = None
-    parameters: dict[str, Any] = Field(default_factory=dict)   # JSON-Schema for the arguments
+    parameters: dict[str, Any] = Field(default_factory=dict)  # JSON-Schema for the arguments
 
 
 class ToolDef(BaseModel):
@@ -41,7 +42,7 @@ class ToolDef(BaseModel):
 
 class FunctionCall(BaseModel):
     name: str
-    arguments: str = ""                   # JSON-encoded arguments, per OpenAI
+    arguments: str = ""  # JSON-encoded arguments, per OpenAI
 
 
 class ToolCall(BaseModel):
@@ -52,18 +53,19 @@ class ToolCall(BaseModel):
 
 class ToolCallDelta(BaseModel):
     """A streamed fragment of a tool call; OpenAI keys fragments by ``index`` so they can be reassembled."""
+
     index: int = 0
     id: str | None = None
     type: str | None = None
-    function: dict[str, Any] | None = None   # {"name"?: str, "arguments"?: str-fragment}
+    function: dict[str, Any] | None = None  # {"name"?: str, "arguments"?: str-fragment}
 
 
 class ChatMessage(BaseModel):
     role: Role
     content: str | list[ContentPart] | None = None
     name: str | None = None
-    tool_calls: list[ToolCall] | None = None       # assistant turn requesting tool execution
-    tool_call_id: str | None = None                # a role="tool" result, correlated to the call it answers
+    tool_calls: list[ToolCall] | None = None  # assistant turn requesting tool execution
+    tool_call_id: str | None = None  # a role="tool" result, correlated to the call it answers
 
     def text(self) -> str:
         if self.content is None:
@@ -79,17 +81,17 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    model: str = ""                       # empty → gateway uses the configured default model
+    model: str = ""  # empty → gateway uses the configured default model
     messages: list[ChatMessage]
     stream: bool = False
     temperature: float | None = None
     max_tokens: int | None = None
     top_p: float | None = None
     user: str | None = None
-    tools: list[ToolDef] | None = None                    # OpenAI tool/function declarations
-    tool_choice: str | dict[str, Any] | None = None       # "auto"|"none"|"required"|{"type":"function",...}
-    max_tool_iters: int | None = None                     # gateway agentic-loop guard (stripped before upstream)
-    extra: dict[str, Any] = Field(default_factory=dict)   # passthrough for backend-specific options
+    tools: list[ToolDef] | None = None  # OpenAI tool/function declarations
+    tool_choice: str | dict[str, Any] | None = None  # "auto"|"none"|"required"|{"type":"function",...}
+    max_tool_iters: int | None = None  # gateway agentic-loop guard (stripped before upstream)
+    extra: dict[str, Any] = Field(default_factory=dict)  # passthrough for backend-specific options
 
 
 # --- OpenAI-compatible response shapes ---
@@ -141,6 +143,11 @@ class ModelInfo(BaseModel):
     owned_by: str = "mixle-mlops"
     kind: Literal["llm", "mixle", "composite"] = "llm"
     capabilities: list[str] = Field(default_factory=list)
+    # estimation certificate + calibration, when the hosted model is a fitted mixle model (else None).
+    # These make the served manifest self-describing: HOW it was estimated (guarantee ladder + why-not-ADAM)
+    # and WHETHER its uncertainty was checked honest, so a consumer can gate on provenance, not just id.
+    certificate: dict[str, Any] | None = None
+    calibration: dict[str, Any] | None = None
 
 
 class CapabilityError(Exception):
@@ -164,8 +171,7 @@ class ModelAdapter(ABC):
 
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     def info(self) -> ModelInfo:
         return ModelInfo(id=self.name, kind=self.kind, capabilities=sorted(self.capabilities()))

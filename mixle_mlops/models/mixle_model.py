@@ -13,6 +13,7 @@ The same fitted model answers:
 ``capabilities()`` advertises only what the wrapped model actually supports, gated on
 ``mixle.capability``, so the gateway never routes a query a model cannot answer.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,6 +30,7 @@ from ..core.adapters import (
     ChoiceDelta,
     CapabilityError,
     ModelAdapter,
+    ModelInfo,
 )
 from ..core.decision import bayes_action
 from ..core.predictive import predictive_batch
@@ -78,9 +80,52 @@ class MixleAdapter(ModelAdapter):
     def name(self) -> str:
         return self._name
 
+    def info(self) -> ModelInfo:
+        """The served manifest, enriched with the model's estimation certificate + calibration (I2).
+
+        A hosted mixle model advertises not just its id and capabilities but HOW it was estimated: the
+        certificate (guarantee ladder + why-not-ADAM audit) and, when the fit reserved a holdout, whether
+        its uncertainty was judged calibrated. The certificate is read from ``model.certificate`` if the
+        fit attached one, else computed on demand via :func:`mixle.inference.certify`. Absence is honest
+        (a model that cannot be certified simply reports ``certificate: null``), never a crash."""
+        base = super().info()
+        base.certificate = self._certificate_manifest()
+        base.calibration = self._calibration_manifest()
+        return base
+
+    def _certificate_manifest(self) -> dict[str, Any] | None:
+        try:
+            cert = getattr(self._model, "certificate", None)
+            if cert is None:
+                from mixle.inference import certify
+
+                cert = certify(self._model)
+            guarantee = cert.guarantee
+            return {
+                "guarantee": getattr(guarantee, "name", str(guarantee)),
+                "guarantee_level": int(guarantee),
+                "why_not_adam": cert.why_not_adam() if hasattr(cert, "why_not_adam") else None,
+                "n_blocks": len(cert.blocks) if hasattr(cert, "blocks") else None,
+                "n_gradient_blocks": len(cert.gradient_blocks) if hasattr(cert, "gradient_blocks") else None,
+            }
+        except Exception:  # noqa: BLE001 - a manifest must never fail to serve; absence is honest
+            return None
+
+    def _calibration_manifest(self) -> dict[str, Any] | None:
+        calib = getattr(self._model, "calibration", None)
+        if calib is None:
+            return None
+        try:
+            return {
+                "is_calibrated": bool(calib.is_calibrated()),
+                "n_holdout": getattr(calib, "n", None),
+            }
+        except Exception:  # noqa: BLE001
+            return None
+
     # --- capability advertisement (gated on what the wrapped model supports) ---
     def capabilities(self) -> set[str]:
-        caps: set[str] = {"chat"}                            # chat is always available (summarizes predict)
+        caps: set[str] = {"chat"}  # chat is always available (summarizes predict)
         m = self._model
         if cap.supports(m, cap.HasCDF) or callable(getattr(m, "sampler", None)):
             caps.add("predict")
@@ -88,7 +133,7 @@ class MixleAdapter(ModelAdapter):
             caps.add("score")
         if cap.supports(m, cap.LatentStructured) or callable(getattr(m, "viterbi", None)):
             caps.add("latent")
-        if callable(getattr(m, "sampler", None)):            # decide needs a posterior we can sample
+        if callable(getattr(m, "sampler", None)):  # decide needs a posterior we can sample
             caps.add("decide")
         return caps
 
@@ -97,15 +142,18 @@ class MixleAdapter(ModelAdapter):
         text = self._chat_summary(req)
         cid = f"chatcmpl-{self._name}"
         yield ChatCompletionChunk(
-            id=cid, model=req.model,
+            id=cid,
+            model=req.model,
             choices=[ChatChunkChoice(delta=ChoiceDelta(role="assistant"))],
         )
         yield ChatCompletionChunk(
-            id=cid, model=req.model,
+            id=cid,
+            model=req.model,
             choices=[ChatChunkChoice(delta=ChoiceDelta(content=text))],
         )
         yield ChatCompletionChunk(
-            id=cid, model=req.model,
+            id=cid,
+            model=req.model,
             choices=[ChatChunkChoice(delta=ChoiceDelta(), finish_reason="stop")],
         )
 
@@ -119,8 +167,7 @@ class MixleAdapter(ModelAdapter):
         except CapabilityError as exc:
             return f"[{self._name}] cannot produce a predictive distribution: {exc}"
         lines = [
-            f"mixle model '{self._name}' predictive distribution "
-            f"({preds.path}, density={preds.density_semantics}):"
+            f"mixle model '{self._name}' predictive distribution ({preds.path}, density={preds.density_semantics}):"
         ]
         for i, r in enumerate(preds.records):
             mean = "n/a" if r.mean is None else f"{r.mean:.4g}"
@@ -161,7 +208,7 @@ class MixleAdapter(ModelAdapter):
 
     async def score(self, records: list[Any], **opts: Any) -> Any:
         recs = list(records)
-        if self._service is not None:                        # prefer the Service (logs the computation)
+        if self._service is not None:  # prefer the Service (logs the computation)
             lp = np.asarray(self._service.score(recs), dtype=float)
         else:
             lp = self._log_densities(recs)
@@ -206,7 +253,7 @@ class MixleAdapter(ModelAdapter):
             if callable(getattr(lp, "entropy", None)):
                 result["entropy"] = np.asarray(lp.entropy()).tolist()
             return result
-        if callable(getattr(m, "viterbi", None)):            # HMM-style most-probable path
+        if callable(getattr(m, "viterbi", None)):  # HMM-style most-probable path
             return {"kind": "viterbi", "path": np.asarray(m.viterbi(recs)).tolist()}
         raise CapabilityError(self._name, "latent")
 
@@ -222,7 +269,7 @@ class MixleAdapter(ModelAdapter):
         loss = opts.get("loss")
         actions = opts.get("actions")
         if loss is None or actions is None:
-            raise CapabilityError(self._name, "decide")        # decide is meaningless without a loss/actions
+            raise CapabilityError(self._name, "decide")  # decide is meaningless without a loss/actions
         over = opts.get("over", "predictive")
         if over == "params":
             if self._fit_data is None:
@@ -233,7 +280,9 @@ class MixleAdapter(ModelAdapter):
         else:
             post = make_posterior(self._model, over="predictive")
         return bayes_action(
-            post, loss, actions,
+            post,
+            loss,
+            actions,
             n=opts.get("n", 2000),
             seed=opts.get("seed", 0),
             cvar_alpha=opts.get("cvar_alpha", 0.1),
@@ -262,15 +311,20 @@ def register_demo_mixle_model(registry: Any, *, name: str = "demo-mixle") -> Mix
 
     rng = np.random.RandomState(0)
     data = list(rng.normal(-3.0, 1.0, size=150)) + list(rng.normal(3.0, 1.0, size=150))
-    init = MixtureDistribution(
-        [GaussianDistribution(-1.0, 1.0), GaussianDistribution(1.0, 1.0)], [0.5, 0.5]
-    )
+    init = MixtureDistribution([GaussianDistribution(-1.0, 1.0), GaussianDistribution(1.0, 1.0)], [0.5, 0.5])
     # best-of restarts avoids EM's label-collapse local optima so the demo reliably separates the clusters.
     import io
 
     _ll, model = best_of(
-        data, data, init.estimator(), trials=5, max_its=60, init_p=0.1, delta=1e-8,
-        rng=np.random.RandomState(0), out=io.StringIO(),   # keep EM iteration logs out of server stdout
+        data,
+        data,
+        init.estimator(),
+        trials=5,
+        max_its=60,
+        init_p=0.1,
+        delta=1e-8,
+        rng=np.random.RandomState(0),
+        out=io.StringIO(),  # keep EM iteration logs out of server stdout
     )
     adapter = MixleAdapter(name, model=model, fit_data=data)
     registry.register(adapter)

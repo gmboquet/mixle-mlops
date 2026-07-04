@@ -4,6 +4,7 @@ then exercise predict / score / latent / decide / capabilities through the gatew
 Self-contained: it builds the app via ``create_app()``, includes the mixle router itself, and registers
 the demo model on ``app.state.registry`` inside the TestClient context -- no dependence on app.py edits.
 """
+
 import mixle_mlops.storage.db as db
 import numpy as np
 import pytest
@@ -23,9 +24,9 @@ def client(tmp_path, monkeypatch):
     get_settings.cache_clear()
     db._engine = None
     app = create_app()
-    app.include_router(mixle_routes.router, prefix="/v1")     # the integrator does this in app.py
+    app.include_router(mixle_routes.router, prefix="/v1")  # the integrator does this in app.py
     with TestClient(app) as c:
-        register_demo_mixle_model(c.app.state.registry)      # demo model on the live registry
+        register_demo_mixle_model(c.app.state.registry)  # demo model on the live registry
         yield c
     get_settings.cache_clear()
     db._engine = None
@@ -40,8 +41,7 @@ def test_predictive_closed_form_gaussian():
     from mixle.inference import fit
     from mixle.stats.univariate.continuous.gaussian import GaussianDistribution
 
-    g = fit(list(np.random.RandomState(0).normal(5.0, 2.0, 300)),
-            GaussianDistribution(0.0, 1.0), max_its=20)
+    g = fit(list(np.random.RandomState(0).normal(5.0, 2.0, 300)), GaussianDistribution(0.0, 1.0), max_its=20)
     preds = predictive_batch(g, [None, None])
     assert preds.path == "closed_form"
     assert preds.density_semantics == "exact"
@@ -64,12 +64,11 @@ def test_bayes_action_picks_low_loss():
     from mixle.inference import fit, posterior
     from mixle.stats.univariate.continuous.gaussian import GaussianDistribution
 
-    g = fit(list(np.random.RandomState(1).normal(10.0, 1.0, 400)),
-            GaussianDistribution(0.0, 1.0), max_its=20)
+    g = fit(list(np.random.RandomState(1).normal(10.0, 1.0, 400)), GaussianDistribution(0.0, 1.0), max_its=20)
     post = posterior(g, over="predictive")
     actions = [0.0, 5.0, 10.0, 15.0]
     res = bayes_action(post, lambda a, y: (float(a) - np.asarray(y, float)) ** 2, actions, n=4000)
-    assert res["action"] == 10.0                              # squared-error optimal ~ the mean
+    assert res["action"] == 10.0  # squared-error optimal ~ the mean
     assert "cvar" in res["risk_profile"]
 
 
@@ -96,10 +95,25 @@ def test_capabilities_requires_auth(client):
     assert client.get("/v1/mixle/capabilities/demo-mixle").status_code == 401
 
 
+def test_served_manifest_carries_the_certificate(client):
+    # /v1/models/{id} returns the adapter's info(); a mixle model's manifest is enriched with its
+    # estimation certificate (guarantee + why-not-ADAM) — the served artifact is self-describing.
+    headers = {"Authorization": f"Bearer {_key(client, 'cert@t.com')}"}
+    r = client.get("/v1/models/demo-mixle", headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+    cert = body["certificate"]
+    assert cert is not None
+    assert cert["guarantee"] in {"HEURISTIC", "STATIONARY", "STATIONARY_ESCAPE_TESTED", "GLOBAL", "GLOBAL_UNIQUE"}
+    assert isinstance(cert["guarantee_level"], int)
+    assert "gradient descent" in cert["why_not_adam"].lower()  # the audit is present
+    # the demo model didn't reserve a calibration holdout -> honestly null, not fabricated
+    assert body["calibration"] is None
+
+
 def test_predict_route(client):
     headers = {"Authorization": f"Bearer {_key(client, 'p@t.com')}"}
-    r = client.post("/v1/mixle/predict", headers=headers,
-                    json={"model": "demo-mixle", "records": [None, None]})
+    r = client.post("/v1/mixle/predict", headers=headers, json={"model": "demo-mixle", "records": [None, None]})
     assert r.status_code == 200
     body = r.json()
     assert body["path"] == "ensemble"
@@ -110,8 +124,7 @@ def test_predict_route(client):
 
 def test_score_route(client):
     headers = {"Authorization": f"Bearer {_key(client, 'sc@t.com')}"}
-    r = client.post("/v1/mixle/score", headers=headers,
-                    json={"model": "demo-mixle", "records": [-3.0, 3.0, -12.0]})
+    r = client.post("/v1/mixle/score", headers=headers, json={"model": "demo-mixle", "records": [-3.0, 3.0, -12.0]})
     assert r.status_code == 200
     body = r.json()
     assert len(body["log_density"]) == 3
@@ -123,8 +136,7 @@ def test_score_route(client):
 
 def test_latent_route(client):
     headers = {"Authorization": f"Bearer {_key(client, 'l@t.com')}"}
-    r = client.post("/v1/mixle/latent", headers=headers,
-                    json={"model": "demo-mixle", "records": [-3.0, 3.0]})
+    r = client.post("/v1/mixle/latent", headers=headers, json={"model": "demo-mixle", "records": [-3.0, 3.0]})
     assert r.status_code == 200
     marg = r.json()["marginals"]
     assert len(marg) == 2 and len(marg[0]) == 2
@@ -134,9 +146,11 @@ def test_latent_route(client):
 
 def test_decide_route(client):
     headers = {"Authorization": f"Bearer {_key(client, 'd@t.com')}"}
-    r = client.post("/v1/mixle/decide", headers=headers,
-                    json={"model": "demo-mixle", "actions": [-3.0, 0.0, 3.0],
-                          "loss": "squared", "over": "predictive", "n": 3000})
+    r = client.post(
+        "/v1/mixle/decide",
+        headers=headers,
+        json={"model": "demo-mixle", "actions": [-3.0, 0.0, 3.0], "loss": "squared", "over": "predictive", "n": 3000},
+    )
     assert r.status_code == 200
     body = r.json()
     assert body["action"] in [-3.0, 0.0, 3.0]
@@ -146,9 +160,11 @@ def test_decide_route(client):
 
 def test_chat_route_summarizes_predict(client):
     headers = {"Authorization": f"Bearer {_key(client, 'ch@t.com')}"}
-    r = client.post("/v1/chat/completions", headers=headers,
-                    json={"model": "demo-mixle",
-                          "messages": [{"role": "user", "content": "[-3.0, 3.0]"}]})
+    r = client.post(
+        "/v1/chat/completions",
+        headers=headers,
+        json={"model": "demo-mixle", "messages": [{"role": "user", "content": "[-3.0, 3.0]"}]},
+    )
     assert r.status_code == 200
     content = r.json()["choices"][0]["message"]["content"]
     assert "demo-mixle" in content and "predictive distribution" in content
@@ -157,6 +173,5 @@ def test_chat_route_summarizes_predict(client):
 def test_capability_error_maps_to_422(client):
     """A model that supports nothing mixle-y yields 422 on /predict (the echo LLM stub)."""
     headers = {"Authorization": f"Bearer {_key(client, 'e@t.com')}"}
-    r = client.post("/v1/mixle/predict", headers=headers,
-                    json={"model": "echo", "records": [None]})
+    r = client.post("/v1/mixle/predict", headers=headers, json={"model": "echo", "records": [None]})
     assert r.status_code == 422
