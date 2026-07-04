@@ -39,6 +39,7 @@ from .routes import (
     substrate,
     tasks,
     telemetry,
+    verbs,
 )
 
 
@@ -170,6 +171,7 @@ def create_app() -> FastAPI:
     app.include_router(substrate.router, prefix="/v1", tags=["substrate"])  # /v1/substrate/* (knowledge store + all-data RAG)
     app.include_router(telemetry.router, prefix="/v1", tags=["telemetry"])  # /v1/telemetry (decision-event sink)
     app.include_router(pool.router, prefix="/v1", tags=["pool"])          # /v1/pool/* (job gateway + round-trip + spend)
+    app.include_router(verbs.router, prefix="/v1", tags=["verbs"])        # /v1/create|uq|simulate|synthesize|skills (verb twins)
     return app
 
 
