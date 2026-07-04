@@ -32,6 +32,7 @@ from .routes import (
     mcp,
     mixle,
     models,
+    pool,
     rag,
     route,
     solutions,
@@ -167,7 +168,8 @@ def create_app() -> FastAPI:
     app.include_router(agentic.router, prefix="/v1", tags=["agentic"])    # /v1/toolcallers/* + /v1/planners/* (distilled agent students)
     app.include_router(solutions.router, prefix="/v1", tags=["solutions"])  # /v1/solutions/* (every solve shape, kind-sniffed)
     app.include_router(substrate.router, prefix="/v1", tags=["substrate"])  # /v1/substrate/* (knowledge store + all-data RAG)
-    app.include_router(telemetry.router, prefix="/v1", tags=["telemetry"])  # /v1/telemetry (decision-event sink for learned orchestration)
+    app.include_router(telemetry.router, prefix="/v1", tags=["telemetry"])  # /v1/telemetry (decision-event sink)
+    app.include_router(pool.router, prefix="/v1", tags=["pool"])          # /v1/pool/* (job gateway + round-trip + spend)
     return app
 
 
