@@ -38,7 +38,10 @@ class TestSubstrateServing:
         h = _headers(client)
         r = client.post(
             "/v1/substrate/kb/documents",
-            json={"docs": ["refunds within 30 days for defective items", "support desk open 9 to 5"], "source": "docs"},
+            json={
+                "docs": ["refunds within 30 days for defective items", "support desk open 9 to 5"],
+                "source": "docs",
+            },
             headers=h,
         )
         assert r.status_code == 200 and r.json()["ingested"] == 2
@@ -91,8 +94,13 @@ class TestSubstrateServing:
         h = _headers(client)
         client.post(
             "/v1/substrate/kb/items",
-            json={"kind": "trace", "text": "training record zeta eta", "payload": {}, "provenance": {"source": "h"},
-                  "links": []},
+            json={
+                "kind": "trace",
+                "text": "training record zeta eta",
+                "payload": {},
+                "provenance": {"source": "h"},
+                "links": [],
+            },
             headers=h,
         )
         # link a doc -> the trace so a hop chain forms
@@ -114,3 +122,31 @@ class TestSubstrateServing:
 
         sub_routes._CACHE.clear()
         assert client.get("/v1/substrate/kb", headers=h).json()["n_items"] == 1
+
+    def test_factuality_grounds_and_flags_claims(self, client):
+        h = _headers(client)
+        client.post(
+            "/v1/substrate/kb/documents",
+            json={"docs": ["Refunds are processed within 30 days of a written request."]},
+            headers=h,
+        )
+        # a mixed answer: one grounded claim, one fabricated
+        ans = "Refunds are processed within 30 days. Free accounts include a dedicated account manager."
+        r = client.post("/v1/substrate/kb/factuality", json={"answer": ans}, headers=h)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["n_claims"] == 2
+        assert 0.0 < body["grounded_fraction"] < 1.0  # partially grounded
+        assert body["n_unsupported"] == 1
+        assert any("account manager" in c for c in body["unsupported"])  # the fabricated claim is named
+        supported = [c for c in body["claims"] if c["supported"]]
+        assert supported and supported[0]["citations"]  # the grounded claim carries a citation
+
+    def test_factuality_requires_an_answer(self, client):
+        h = _headers(client)
+        client.post("/v1/substrate/kb/documents", json={"docs": ["some knowledge"]}, headers=h)
+        assert client.post("/v1/substrate/kb/factuality", json={}, headers=h).status_code == 422
+
+    def test_factuality_missing_shard_404s(self, client):
+        h = _headers(client)
+        assert client.post("/v1/substrate/nope/factuality", json={"answer": "x"}, headers=h).status_code == 404

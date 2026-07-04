@@ -15,6 +15,10 @@ Nothing is returned without provenance -- every context carries its citations.
   * ``POST /v1/substrate/{name}/retrieve``     -- ``{"query", "k", "diversify", "hops"}`` -> cited items.
   * ``POST /v1/substrate/{name}/context``      -- ``{"query", "budget", "hops", "compress", "min_confidence"}``
         -> ``{"abstain", "confidence", "context", "citations"}`` -- the RAG serving contract.
+  * ``POST /v1/substrate/{name}/factuality``   -- ``{"answer", "min_score", "k"}`` -> per-claim receipt
+        ``{"grounded_fraction", "n_unsupported", "claims": [{"claim", "supported", "citations"}]}``.
+        Fully server-side (retrieval + content overlap, no caller model): ground an answer's claims in
+        the store and report which can be cited -- the deployed twin of ``check_factuality`` (B3).
 
 A shard persists under ``{registry_root}/substrate/{name}`` (the same on-disk layout ``Substrate.save``
 writes), so it survives restarts and can be rsync'd between the local daemon and the pool.
@@ -176,3 +180,27 @@ def context_route(name: str, body: dict[str, Any], user: User = Depends(require_
         "citations": ans.citations(),
         "note": ans.note,
     }
+
+
+@router.post("/substrate/{name}/factuality")
+def factuality_route(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
+    """Ground an answer's claims in the shard: a per-claim receipt with citations (fully server-side).
+
+    Unlike ``/context`` (which returns evidence for the caller's own model to answer), this deploys the
+    complete ``check_factuality`` loop -- claim extraction + retrieval + content-overlap corroboration --
+    because verifying an already-written answer needs no generation. The caller gates on the receipt."""
+    if "answer" not in body:
+        raise HTTPException(status_code=422, detail='body must be {"answer": ...}')
+    from mixle.substrate import check_factuality
+
+    sub = _shard(name)
+    receipt = check_factuality(
+        sub,
+        str(body["answer"]),
+        min_score=float(body.get("min_score", 0.2)),
+        k=int(body.get("k", 4)),
+        scope=body.get("scope"),
+    )
+    d = receipt.as_dict()
+    d["unsupported"] = [v.claim for v in receipt.unsupported()]
+    return d
