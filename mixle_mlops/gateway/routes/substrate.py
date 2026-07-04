@@ -204,3 +204,27 @@ def factuality_route(name: str, body: dict[str, Any], user: User = Depends(requi
     d = receipt.as_dict()
     d["unsupported"] = [v.claim for v in receipt.unsupported()]
     return d
+
+
+@router.post("/substrate/{name}/publish")
+def publish_route(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
+    """Share items into a common scope -- the audited, explicit way knowledge crosses a team boundary (P1).
+
+    ``{"ids": [...], "to": "public", "from_scope": "teamA"}`` re-scopes each item and stamps its provenance
+    with who published it (the authenticated user) and from where. ``from_scope`` guards that only items in
+    that scope are published, so a team cannot publish another team's private items."""
+    ids = body.get("ids")
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(status_code=422, detail='body must be {"ids": [<item id>, ...]}')
+    from mixle.substrate import publish
+
+    sub = _shard(name)
+    published = publish(
+        sub,
+        [str(i) for i in ids],
+        to=str(body.get("to", "public")),
+        by=str(getattr(user, "email", None) or getattr(user, "id", "api")),
+        from_scope=body.get("from_scope"),
+    )
+    _persist(name, sub)
+    return {"published": published, "n": len(published), "to": str(body.get("to", "public"))}

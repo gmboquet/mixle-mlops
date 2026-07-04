@@ -150,3 +150,53 @@ class TestSubstrateServing:
     def test_factuality_missing_shard_404s(self, client):
         h = _headers(client)
         assert client.post("/v1/substrate/nope/factuality", json={"answer": "x"}, headers=h).status_code == 404
+
+    def test_publish_shares_an_item_across_scopes(self, client):
+        h = _headers(client)
+        # teamA adds a private item; a teamB-scoped retrieve cannot see it
+        r = client.post(
+            "/v1/substrate/kb/items",
+            json={"kind": "text", "text": "teamA private roadmap for onboarding", "scope": "teamA"},
+            headers=h,
+        )
+        item_id = r.json()["id"]
+        rb = client.post(
+            "/v1/substrate/kb/retrieve", json={"query": "onboarding roadmap", "scope": "public"}, headers=h
+        )
+        assert rb.json()["items"] == []  # nothing in public scope yet
+        # publish teamA's item to public (guarded by from_scope)
+        p = client.post(
+            "/v1/substrate/kb/publish",
+            json={"ids": [item_id], "to": "public", "from_scope": "teamA"},
+            headers=h,
+        )
+        assert p.status_code == 200 and p.json()["n"] == 1
+        # now a public-scope retrieve finds it
+        import mixle_mlops.gateway.routes.substrate as sub_routes
+
+        sub_routes._CACHE.clear()
+        rp = client.post(
+            "/v1/substrate/kb/retrieve", json={"query": "onboarding roadmap", "scope": "public"}, headers=h
+        )
+        assert len(rp.json()["items"]) >= 1
+
+    def test_publish_requires_ids(self, client):
+        h = _headers(client)
+        client.post("/v1/substrate/kb/documents", json={"docs": ["x"]}, headers=h)
+        assert client.post("/v1/substrate/kb/publish", json={}, headers=h).status_code == 422
+
+    def test_publish_from_scope_guard_skips_foreign_items(self, client):
+        h = _headers(client)
+        r = client.post(
+            "/v1/substrate/kb/items",
+            json={"kind": "text", "text": "teamA item", "scope": "teamA"},
+            headers=h,
+        )
+        item_id = r.json()["id"]
+        # attempting to publish it as if from teamB is a no-op
+        p = client.post(
+            "/v1/substrate/kb/publish",
+            json={"ids": [item_id], "to": "public", "from_scope": "teamB"},
+            headers=h,
+        )
+        assert p.status_code == 200 and p.json()["n"] == 0
