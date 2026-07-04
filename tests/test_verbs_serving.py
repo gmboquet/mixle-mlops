@@ -142,3 +142,27 @@ class TestSkills:
     def test_register_requires_name_and_model(self, client):
         h = _headers(client)
         assert client.post("/v1/skills", json={"name": "x"}, headers=h).status_code == 422
+
+
+class TestLineage:
+    def test_lineage_walks_data_to_model_to_skills(self, client):
+        h = _headers(client)
+        out = _create(client, h)
+        model_id = out["model_id"]
+        assert out["data_fingerprint"]  # the lineage edge back to the exact training data
+        client.post(
+            "/v1/skills",
+            json={"name": "spend_skill", "model_id": model_id, "description": "spend"},
+            headers=h,
+        )
+        r = client.get(f"/v1/lineage/{model_id}", headers=h)
+        assert r.status_code == 200
+        lin = r.json()
+        assert lin["data_fingerprint"] == out["data_fingerprint"]  # data -> model
+        assert lin["skills"] == ["spend_skill"]  # model -> skill
+        kinds = {e["kind"] for e in lin["edges"]}
+        assert kinds == {"fit", "exposes"}  # the full chain as queryable edges
+
+    def test_lineage_unknown_model_404s(self, client):
+        h = _headers(client)
+        assert client.get("/v1/lineage/nope", headers=h).status_code == 404

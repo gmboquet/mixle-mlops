@@ -63,7 +63,7 @@ def _rows(data: Any) -> list[Any]:
 @router.post("/create")
 def create_route(body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
     """CREATE: records -> a certified, stored model artifact (guarantee + calibration + fingerprint)."""
-    from mixle.inference import create
+    from mixle.inference import create, data_fingerprint
 
     rows = _rows(body.get("data"))
     calibrate = body.get("calibrate")
@@ -79,6 +79,7 @@ def create_route(body: dict[str, Any], user: User = Depends(require_user)) -> di
         "is_calibrated": art.is_calibrated(),
         "strategy": art.strategy,
         "n": len(rows),
+        "data_fingerprint": data_fingerprint(rows),  # the lineage edge back to the exact training data
     }
     model_id = _store_model(user, art.model, meta)
     return {"model_id": model_id, **meta}
@@ -216,3 +217,29 @@ def find_skills(query: str | None = None, user: User = Depends(require_user)) ->
 
     ranked = sorted(((score(s), s) for s in skills), key=lambda t: -t[0])
     return {"skills": [s for sc, s in ranked if sc > 0]}
+
+
+@router.get("/lineage/{model_id}")
+def lineage_route(model_id: str, user: User = Depends(require_user)) -> dict[str, Any]:
+    """The lineage graph for a stored artifact (I3): data -> model -> the skills that expose it.
+
+    One query answers "where did this model come from, and what depends on it": the exact training-data
+    fingerprint recorded at create-time, the parameter fingerprint (bit-identity), the certificate
+    summary, and every registered skill that references the model. Deleting or replacing the model can
+    be judged against its dependents instead of guessed."""
+    _model, payload = _load_model(user, model_id)
+    skills_path = _user_dir(user) / "skills.json"
+    skills = list(json.loads(skills_path.read_text()).values()) if skills_path.exists() else []
+    dependents = [s["name"] for s in skills if s.get("model_id") == model_id]
+    return {
+        "model_id": model_id,
+        "fingerprint": payload["fingerprint"],
+        "data_fingerprint": payload["meta"].get("data_fingerprint"),
+        "guarantee": payload["meta"].get("guarantee"),
+        "n_training_rows": payload["meta"].get("n"),
+        "skills": dependents,
+        "edges": (
+            [{"from": "data:" + str(payload["meta"].get("data_fingerprint"))[:12], "to": model_id, "kind": "fit"}]
+            + [{"from": model_id, "to": f"skill:{s}", "kind": "exposes"} for s in dependents]
+        ),
+    }
