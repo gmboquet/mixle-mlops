@@ -17,6 +17,7 @@ retraining.
    :maxdepth: 2
 
    installation
+   quickstart
    overview
    package-map
    operator-runbook
