@@ -43,10 +43,13 @@ class DecideBody(BaseModel):
     """A decision request. ``loss`` names a built-in loss; ``actions`` is the candidate set.
 
     Built-in losses operate on a scalar outcome/draw ``y`` and a scalar action ``a``:
-      ``squared``  -> (a - y)**2          (point estimation under squared error)
-      ``absolute`` -> |a - y|             (median-optimal)
-      ``linex``    -> exp(c*(a-y)) - c*(a-y) - 1   (asymmetric; ``c`` from ``loss_params['c']``)
-      ``newsvendor`` -> underage/overage  (``cu``/``co`` from ``loss_params``)
+
+    * ``squared`` evaluates ``(a - y)**2`` for point estimation under squared error.
+    * ``absolute`` evaluates ``abs(a - y)`` for median-optimal actions.
+    * ``linex`` evaluates ``exp(c*(a-y)) - c*(a-y) - 1`` using ``loss_params['c']``.
+    * ``newsvendor`` evaluates underage/overage costs from ``loss_params['cu']`` and
+      ``loss_params['co']``.
+
     Custom Python callables are intentionally NOT accepted over HTTP; use the in-process adapter for that.
     """
 
