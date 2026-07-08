@@ -34,7 +34,7 @@ local = ["torch>=2", "transformers>=4"]             # local logit-level engine: 
 cloud = ["psycopg[binary]>=3.1", "boto3>=1.34",     # managed Postgres + AWS
          "fsspec>=2023.1", "s3fs", "gcsfs", "adlfs", "ossfs"]   # unified object store: S3/GCS/Azure/OSS
 mcp = ["mcp>=1.0"]                                   # MCP server/client (official SDK; minimal fallback otherwise)
-docs = ["sphinx>=7", "furo", "myst-parser>=2"]
+docs = ["sphinx>=7", "furo"]
 all = ["mixle-mlops[documents,scale,export,datasets,structured,local,cloud,mcp]"]
 
 [project.scripts]
