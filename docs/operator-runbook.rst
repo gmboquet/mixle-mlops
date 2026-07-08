@@ -38,6 +38,9 @@ Do not make mobile, notebook, or demo packages mutate registry or deployment
 state directly. They should call a documented server-side route or stay in
 offline/demo mode.
 
+The route-level operating contract is documented in
+:doc:`gateway-operating-contract`.
+
 Artifacts And Receipts
 ----------------------
 

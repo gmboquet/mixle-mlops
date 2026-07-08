@@ -16,6 +16,7 @@ Start Here
 
 Start with :doc:`quickstart` to run the local gateway with the built-in echo
 model. Use :doc:`operator-runbook` for operational boundaries and
+:doc:`gateway-operating-contract` for route behavior. Use
 :doc:`model-distillation-and-cross-modal-training` for training, registry, and
 promotion workflows.
 
@@ -29,6 +30,7 @@ promotion workflows.
    overview
    package-map
    operator-runbook
+   gateway-operating-contract
    model-distillation-and-cross-modal-training
    README
    release-0-6-3

@@ -13,7 +13,8 @@ Gateway
 ``mixle_mlops.gateway.routes.*``
     HTTP routes for accounts, chat, files, models, datasets, RAG, MCP,
     feedback, tasks, solutions, pool jobs, substrate serving, telemetry, and
-    creation verbs.
+    creation verbs. See :doc:`gateway-operating-contract` for the route
+    lifecycle and failure-state expectations.
 
 ``mixle_mlops.gateway.auth`` and ``mixle_mlops.gateway.verifiers``
     Request authentication and verifier helpers.
