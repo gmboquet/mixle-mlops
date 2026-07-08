@@ -19,6 +19,8 @@ Added
 * Model-distillation and cross-modal training guide for datasets, training
   jobs, registry decisions, and promotion evidence.
 * Generated API reference for public modules and routes.
+* Release-readiness checklist for route smoke checks, backend configuration,
+  credentials, promotion state, and clean-archive docs evidence.
 
 Changed
 ~~~~~~~

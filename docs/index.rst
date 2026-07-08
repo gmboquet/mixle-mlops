@@ -32,6 +32,7 @@ promotion workflows.
    operator-runbook
    gateway-operating-contract
    model-distillation-and-cross-modal-training
+   release-readiness
    release-0-6-3
    changelog
    security-and-data
