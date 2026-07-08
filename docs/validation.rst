@@ -35,7 +35,7 @@ Record:
 * server start command;
 * route exercised;
 * backend configuration, such as in-memory, SQLite, Redis, or object store;
-* whether credentials were fake/local or real;
+* whether credentials were example-only, local, or real;
 * expected response shape;
 * logs or artifacts produced by the check.
 

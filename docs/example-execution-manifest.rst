@@ -8,7 +8,8 @@ runtime assumptions are explicit.
 Current Inventory
 -----------------
 
-The package currently ships 11 Python example scripts plus one example README:
+The package currently ships 11 Python example scripts plus one companion
+README in the neural-experts example directory:
 
 .. list-table::
    :header-rows: 1
@@ -37,8 +38,9 @@ The package currently ships 11 Python example scripts plus one example README:
      - Execute on GPU runners; blocked on CPU-only runners.
    * - ``examples/mixle_neural_experts/train.py``
      - Execute or record neural-training runtime limits.
-   * - ``examples/mixle_neural_experts/README.md``
-     - Keep synchronized with the training script and release notes.
+   * - ``examples/mixle_neural_experts/``
+     - Keep the companion README synchronized with the training script and
+       release notes.
 
 Release Execution Status
 ------------------------
@@ -53,7 +55,7 @@ Gateway examples must also record:
 * server start command;
 * storage/cache backend configuration;
 * provider/model configuration;
-* whether credentials were fake, local, or real;
+* whether credentials were example-only, local, or real;
 * route or CLI command exercised; and
 * output artifacts or logs produced.
 

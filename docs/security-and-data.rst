@@ -10,7 +10,7 @@ Secrets
 
 Do not commit API keys, OAuth tokens, JWT secrets, cloud credentials, database
 passwords, object-store keys, or provider credentials. Examples should use
-clearly fake values and environment-variable names.
+obviously invalid sample values and environment-variable names.
 
 Accounts And Auth
 -----------------
