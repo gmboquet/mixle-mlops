@@ -32,6 +32,23 @@ curl localhost:8000/v1/models               # OpenAI-compatible
 | **Multi-cloud deploy** (AWS/Azure/GCP/Alicloud) | Helm chart + Terraform + `mixle-mlops init-cloud` |
 | **Universal cloud compute** (GPU VMs, marketplaces, managed k8s, on-prem) | Any OpenAI-compatible endpoint + generic Docker/Kubernetes GPU recipes |
 
+## Documentation
+
+The Sphinx manual starts at [`docs/index.rst`](docs/index.rst). It includes installation notes, the
+package map, validation guidance, generated API reference pages, and release-facing guides.
+
+Build it with:
+
+```sh
+python -m pip install -e ".[docs]"
+make -C docs html
+```
+
+The 0.6.3 gateway surfaces are documented in
+[`docs/0.6.3-gateway-capabilities.md`](docs/0.6.3-gateway-capabilities.md):
+substrate serving, telemetry, pool jobs, creation verbs, Mixle model manifests,
+and drift retraining.
+
 ## The mixle bridge — frontier quality on a laptop
 
 mixle is the calibrated **judge / combiner / router** around a small local generator. None of this puts 1T

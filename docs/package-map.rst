@@ -1,0 +1,35 @@
+Package Map
+===========
+
+``mixle_mlops.gateway``
+    FastAPI app factory, route modules, auth, verifiers, agent loop, routing
+    policies, MoA, PoE, cascades, best-of-N, constrained decoding, and
+    program offload.
+
+``mixle_mlops.models``
+    Echo, local, OpenAI-compatible, provider, Mixle-model, and task-cascade
+    adapters.
+
+``mixle_mlops.core``
+    Capability adapters, registry, predictive helpers, and decision helpers.
+
+``mixle_mlops.accounts`` and ``mixle_mlops.conversations``
+    Users, API keys, OAuth/device-code flows, conversation storage, and export.
+
+``mixle_mlops.rag``, ``mixle_mlops.documents``, and ``mixle_mlops.multimodal``
+    Document parsing, embeddings, vector stores, retrieval augmentation,
+    multimodal content, and file storage.
+
+``mixle_mlops.feedback``, ``mixle_mlops.training``, and ``mixle_mlops.evolve``
+    Feedback collection, reward modeling, fine-tune records, drift retraining,
+    lineage, scheduler, signals, and workers.
+
+``mixle_mlops.datasets`` and ``mixle_mlops.compute``
+    Dataset generation/export and external compute job launch descriptions.
+
+``mixle_mlops.storage`` and ``mixle_mlops.cache``
+    Database, object-store, response-cache, Redis, in-memory cache, and rate
+    limiting.
+
+``deploy`` and ``frontend``
+    Deployment assets and the Next.js chat UI.

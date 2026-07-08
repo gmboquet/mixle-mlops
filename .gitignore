@@ -10,6 +10,7 @@ models/
 .ruff_cache/
 .pytest_cache/
 .DS_Store
+docs/_build/
 .env
 mixle_data/
 *.db
