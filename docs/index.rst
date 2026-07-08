@@ -22,6 +22,7 @@ retraining.
    operator-runbook
    README
    release-0-6-3
+   security-and-data
    0.6.3-gateway-capabilities
    api-overview
    validation
