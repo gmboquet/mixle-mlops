@@ -21,9 +21,11 @@ retraining.
    package-map
    operator-runbook
    README
+   release-0-6-3
    0.6.3-gateway-capabilities
    api-overview
    validation
+   troubleshooting
 
 .. toctree::
    :caption: Reference
