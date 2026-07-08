@@ -24,6 +24,7 @@ retraining.
    release-0-6-3
    changelog
    security-and-data
+   example-execution-manifest
    0.6.3-gateway-capabilities
    api-overview
    validation
