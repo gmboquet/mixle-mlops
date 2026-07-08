@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mixle-mlops"
-version = "0.1.0"
+version = "0.6.3"
 description = "All-in-one AI platform: host mixle models + open LLMs behind one OpenAI-compatible gateway, with accounts, API keys, multimodal, MCP, a chat UI, and a principled (mixle-powered) RLHF feedback loop."
 readme = "README.md"
 requires-python = ">=3.10"
