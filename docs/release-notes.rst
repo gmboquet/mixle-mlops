@@ -1,5 +1,5 @@
-0.6.3 Release Notes
-===================
+Release Notes
+=============
 
 ``mixle-mlops`` is the serving and operations package for the 0.6.3 family. It
 documents gateway capabilities, model/provider surfaces, substrate serving,
@@ -10,7 +10,7 @@ Included
 
 * Sphinx manual with operator runbook, package map, API overview, validation,
   and troubleshooting pages.
-* 0.6.3 gateway capability guide.
+* gateway capability guide.
 * Generated API pages for public modules and routes.
 * Documentation extra in package metadata.
 * ``docs/_build`` ignore rule for local builds.

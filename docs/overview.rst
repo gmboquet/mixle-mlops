@@ -18,7 +18,7 @@ The package owns:
 * Feedback collection, reward modeling, self-evolution signals, and drift
   retraining orchestration.
 * Pool jobs, substrate routes, telemetry, creation verbs, lineage, and spend
-  rails added for the 0.6.3 release branch.
+  rails documented by the gateway capability guide.
 * Deployment helpers for local, container, and cloud environments.
 
 The package does not own Mixle's core probability models, PDE kernels, discrete

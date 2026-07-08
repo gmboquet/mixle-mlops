@@ -7,7 +7,7 @@ OpenAI-compatible model providers behind one application surface, with account
 management, API keys, RAG, multimodal input, MCP tooling, feedback loops,
 dataset export, and deployment helpers.
 
-For 0.6.3, the package also documents the gateway capability work for substrate
+The package also documents the gateway capability work for substrate
 serving, telemetry, pool jobs, spend rails, creation verbs, lineage, and drift
 retraining.
 
@@ -33,11 +33,11 @@ promotion workflows.
    gateway-operating-contract
    model-distillation-and-cross-modal-training
    release-readiness
-   release-0-6-3
+   release-notes
    changelog
    security-and-data
    example-execution-manifest
-   0.6.3-gateway-capabilities
+   gateway-capabilities
    api-overview
    validation
    troubleshooting

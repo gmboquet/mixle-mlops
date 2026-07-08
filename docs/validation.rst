@@ -6,7 +6,7 @@ feedback, datasets, RAG, accounts, object storage, MCP, multimodal payloads,
 structured output, task cascades, pool jobs, substrate serving, telemetry,
 creation verbs, and drift retraining.
 
-Focused 0.6.3 validation:
+Focused validation:
 
 .. code-block:: console
 

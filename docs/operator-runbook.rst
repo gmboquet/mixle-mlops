@@ -97,7 +97,7 @@ endpoints.
 Release Review Checklist
 ------------------------
 
-For a 0.6.3 documentation or gateway PR, record:
+For a documentation or gateway PR, record:
 
 * install command and optional extras used;
 * focused tests for changed routes or services;

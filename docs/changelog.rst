@@ -4,17 +4,17 @@ Changelog
 This changelog records documentation-visible release changes for
 ``mixle-mlops``.
 
-0.6.3 Release Branch
---------------------
+Current Release Branch
+----------------------
 
-See :doc:`release-0-6-3` for scope, validation evidence, and known risks.
+See :doc:`release-notes` for scope, validation evidence, and known risks.
 
 Added
 ~~~~~
 
 * Sphinx manual for gateway operation, route behavior, package map, security,
   validation, troubleshooting, and example execution manifests.
-* 0.6.3 gateway-capability guide covering substrate serving, telemetry, pool
+* gateway-capability guide covering substrate serving, telemetry, pool
   jobs, creation verbs, lineage, and drift/retraining.
 * Model-distillation and cross-modal training guide for datasets, training
   jobs, registry decisions, and promotion evidence.

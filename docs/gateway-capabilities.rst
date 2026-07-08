@@ -1,7 +1,7 @@
-0.6.3 Gateway Capabilities
-==========================
+Gateway Capabilities
+====================
 
-The 0.6.3 branch expands ``mixle-mlops`` as the gateway and operations package
+This guide describes ``mixle-mlops`` as the gateway and operations package
 for Mixle. Core modeling stays in ``mixle`` and sibling packages; this package
 owns authentication, persistence, queues, registry boundaries, route
 registration, spend gates, and deployment-adjacent service behavior.
@@ -9,7 +9,7 @@ registration, spend gates, and deployment-adjacent service behavior.
 Scope
 -----
 
-The release branch documents these gateway surfaces:
+This guide documents these gateway surfaces:
 
 * substrate serving for retrieval, context assembly, factuality receipts,
   publishing, and promotion review;
