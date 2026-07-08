@@ -20,6 +20,7 @@ retraining.
    overview
    package-map
    operator-runbook
+   model-distillation-and-cross-modal-training
    README
    release-0-6-3
    changelog
