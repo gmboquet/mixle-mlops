@@ -49,6 +49,10 @@ The 0.6.3 gateway surfaces are documented in
 substrate serving, telemetry, pool jobs, creation verbs, Mixle model manifests,
 and drift retraining.
 
+Release notes and the current changelog are in
+[`docs/release-0-6-3.rst`](docs/release-0-6-3.rst) and
+[CHANGELOG.md](CHANGELOG.md).
+
 ## The mixle bridge — frontier quality on a laptop
 
 mixle is the calibrated **judge / combiner / router** around a small local generator. None of this puts 1T
