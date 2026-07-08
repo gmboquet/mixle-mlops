@@ -1,0 +1,128 @@
+0.6.3 Gateway Capabilities
+==========================
+
+The 0.6.3 branch expands ``mixle-mlops`` as the gateway and operations package
+for Mixle. Core modeling stays in ``mixle`` and sibling packages; this package
+owns authentication, persistence, queues, registry boundaries, route
+registration, spend gates, and deployment-adjacent service behavior.
+
+Scope
+-----
+
+The release branch documents these gateway surfaces:
+
+* substrate serving for retrieval, context assembly, factuality receipts,
+  publishing, and promotion review;
+* telemetry ingestion for PII-free decision events and training rows;
+* pool job submission with budget, confirmation, quota, spend, and artifact
+  round-trip checks;
+* creation verbs for certified model artifacts, uncertainty quantification,
+  simulation, verified synthesis, skills, and lineage;
+* Mixle model-serving manifests with certificate and calibration metadata;
+* drift retraining that promotes only after a drift-triggered refit.
+
+Route Families
+--------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Area
+     - Route family
+     - Contract
+   * - Substrate
+     - ``/v1/substrate/{name}``
+     - Inspect persisted shards, ingest typed evidence, retrieve cited items,
+       assemble context, check factuality, and manage publish/propose/review
+       flows.
+   * - Telemetry
+     - ``/v1/telemetry``
+     - Persist typed decision events and extract training rows for learned
+       routing or placement policies.
+   * - Pool
+     - ``/v1/pool/jobs`` and ``/v1/pool/spend``
+     - Submit budgeted jobs, enforce confirmation and quota rails, and return
+       completed artifacts with provenance.
+   * - Creation verbs
+     - ``/v1/create``, ``/v1/uq``, ``/v1/simulate``, ``/v1/synthesize``
+     - Store certified model artifacts, quantify uncertainty when available,
+       simulate records, and generate verifier-checked synthetic data.
+   * - Skills and lineage
+     - ``/v1/skills`` and ``/v1/lineage/{model_id}``
+     - Register model-backed skills and report data-to-model-to-skill lineage.
+
+Substrate Serving
+-----------------
+
+Substrate endpoints expose evidence retrieval and review state. The
+``/context`` route returns context, citations, and an abstain decision; it does
+not generate an answer. Callers must either answer from the returned evidence
+or respect ``abstain: true``.
+
+Publishing and promotion are explicit. A user may publish or propose items
+when authorized, but curated promotion requires an approval endpoint. Retrieval
+must not make visibility or promotion a side effect.
+
+Telemetry
+---------
+
+Telemetry events are decision records, not raw content. They should carry a
+kind, feature dictionary, choice, outcome, and tags. Unknown event kinds are
+rejected per event rather than crashing the batch.
+
+Training-row extraction is evidence for learned orchestration policies. Static
+policies remain the default until a learned policy is receipted as no worse on
+the recorded history.
+
+Pool Jobs And Spend Rails
+-------------------------
+
+Pool endpoints enforce budget and quota before work starts:
+
+* estimated cost above budget rejects the job;
+* priced jobs require explicit confirmation;
+* quota overflow rejects before execution;
+* rejected jobs cost nothing;
+* completed fit jobs return a serialized artifact and canonical parameter
+  fingerprint.
+
+Unsupported operation kinds should be recorded as rejected outcomes, not
+untracked worker failures.
+
+Creation, Model Manifests, And Drift
+------------------------------------
+
+Creation routes are HTTP twins of core Mixle artifact operations. Stored
+models should record certificate, calibration status when requested, strategy,
+row count, data fingerprint, and parameter fingerprint.
+
+``MixleAdapter.info()`` should expose certificate and calibration metadata when
+the hosted model provides it. Clients should be able to gate on estimation and
+uncertainty evidence, not only model identifiers.
+
+Drift retraining compares recent traffic against the production reference. If
+drift is detected, it refits, registers, promotes a new production version, and
+rolls the reference forward. If no drift is detected, the production alias is
+untouched.
+
+Validation Map
+--------------
+
+Release validation should cover:
+
+* substrate ingest, retrieval, context abstention, factuality, publish, and
+  proposal review;
+* telemetry push, stats, training rows, unknown-kind rejection, persistence,
+  and per-user scoping;
+* pool budget rejection, confirmation rails, quota, artifact round trip, spend
+  accounting, and queue listing;
+* create, calibration, UQ degradation, simulation, synthesis, skills, and
+  lineage;
+* drift-triggered promotion and no-drift no-op behavior.
+
+Boundaries
+----------
+
+The gateway persists artifacts and queues under ``registry_root``. Production
+deployments should place that root on durable storage. New operation kinds must
+be explicit tested executors with budget and spend rails.
