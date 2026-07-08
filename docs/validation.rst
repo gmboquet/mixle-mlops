@@ -47,3 +47,19 @@ For release review, build with warnings treated as errors:
 .. code-block:: console
 
    python -m sphinx -W -b html docs docs/_build/html
+
+Clean-Archive Documentation Gate
+--------------------------------
+
+Before public release, also build the docs from tracked files only:
+
+.. code-block:: console
+
+   tmp=$(mktemp -d)
+   git archive HEAD | tar -x -C "$tmp"
+   PYTHONPATH="$tmp:/Users/grantboquet/mixle/mixle" \
+     python -m sphinx -q -W --keep-going -b html "$tmp/docs" "$tmp/docs/_build/html"
+
+Use an installed core ``mixle`` package instead of the workspace path when
+validating published artifacts. This gate catches autodoc failures hidden by a
+dirty working tree.
