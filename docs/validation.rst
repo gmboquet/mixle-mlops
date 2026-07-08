@@ -25,3 +25,25 @@ Run the full suite from the package root with:
 .. code-block:: console
 
    python -m pytest
+
+Operational Smoke Checks
+------------------------
+
+For route or service changes, pair unit tests with a small local smoke check.
+Record:
+
+* server start command;
+* route exercised;
+* backend configuration, such as in-memory, SQLite, Redis, or object store;
+* whether credentials were fake/local or real;
+* expected response shape;
+* logs or artifacts produced by the check.
+
+Strict Docs Gate
+----------------
+
+For release review, build with warnings treated as errors:
+
+.. code-block:: console
+
+   python -m sphinx -W -b html docs docs/_build/html

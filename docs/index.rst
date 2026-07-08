@@ -19,6 +19,7 @@ retraining.
    installation
    overview
    package-map
+   operator-runbook
    README
    0.6.3-gateway-capabilities
    api-overview
