@@ -16,9 +16,9 @@ Locally (no GPU rental, no spend):
 mixle-mlops train neural-experts --local --backend mixle \
     --script train.py --workdir examples/mixle_neural_experts
 ```
-On a rented GPU (same command, drop `--local`, set `MIXLE_VAST_API_KEY`). The box installs the mixle
-core from git by default (`git+https://github.com/gmboquet/mixle.git@evolve`) so it runs the current
-code, not a pinned PyPI release — override with `--mixle-git` or the `MIXLE_GIT` env var:
+On a rented GPU (same command, drop `--local`, set `MIXLE_VAST_API_KEY`). The box installs the pinned
+mixle core from PyPI by default (`mixle>=0.6.1`, matching this package's own dependency) — override
+with `--mixle-git` or the `MIXLE_GIT` env var to test an unreleased mixle branch or commit:
 ```sh
 MIXLE_VAST_API_KEY=... mixle-mlops train neural-experts --backend mixle \
     --script train.py --workdir examples/mixle_neural_experts \

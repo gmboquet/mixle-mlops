@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> None:
                     help="hard cap (minutes): destroy the box after this long no matter what")
     tr.add_argument("--image", default=None, help="docker image override")
     tr.add_argument("--mixle-git", dest="mixle_spec", default=None,
-                    help="pip spec for the mixle core on the box (default: git@evolve; env MIXLE_GIT)")
+                    help="pip spec for the mixle core on the box (default: pinned PyPI release; env MIXLE_GIT)")
     tr.add_argument("--requirements", "--req", dest="requirements", action="append", default=[],
                     metavar="PKG", help="extra pip package to install on the box (repeatable)")
     tr.add_argument("--no-register", dest="register", action="store_false")
