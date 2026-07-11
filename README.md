@@ -59,7 +59,8 @@ verifiably and non-regressively beats the champion** (built on `mixle.evolve`):
 ## Develop
 
 ```sh
-pip install -e ".[dev]"                      # + extras: documents, scale, datasets, export, cloud, mcp, all
+pip install -e ".[dev]"                      # + extras: documents, scale, export, datasets, structured, local,
+                                              #           cloud, mcp, image, all
 pytest -q                                    # the full suite
 ruff check mixle_mlops tests
 mixle-mlops create-user you@example.com pw --admin   # a user + an API key
