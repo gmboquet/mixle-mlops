@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mixle-mlops"
-version = "0.1.0"
+version = "0.7.0"
 description = "All-in-one AI platform: host mixle models + open LLMs behind one OpenAI-compatible gateway, with accounts, API keys, multimodal, MCP, a chat UI, and a principled (mixle-powered) RLHF feedback loop."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,7 +12,11 @@ license = "MIT"
 authors = [{ name = "Grant Boquet" }]
 dependencies = [
     # mixle core (the model primitives + the probabilistic differentiator). Published on PyPI as `mixle`.
-    "mixle>=0.2",
+    # Floor is 0.6.1: mixle.evolve, mixle.task(.calibrate/.density/.distill/.model), mixle.ops.product_of_experts,
+    # and mixle.enumeration.AutoregressiveEnumerable (all imported by this package) do not exist before 0.6.1 --
+    # mixle==0.6.0 raises ModuleNotFoundError on several of them. Verified by importing every top-level
+    # `mixle.*` symbol this package uses against each published mixle release (0.6.0/0.6.1/0.6.2/0.7.0).
+    "mixle>=0.6.1",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "pydantic>=2",
