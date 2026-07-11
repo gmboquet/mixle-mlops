@@ -21,7 +21,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       args:
-        MIXLE_GIT: ${MIXLE_GIT:-git+https://github.com/gmboquet/mixle@main}
+        MIXLE_GIT: ${MIXLE_GIT:-}
     image: mixle-mlops:latest
     restart: unless-stopped
     ports:

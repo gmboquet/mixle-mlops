@@ -91,4 +91,5 @@ The split mirrors mixle's: **mixle** owns the domain-neutral math (distributions
 `mixle.evolve`); **mixle-mlops** owns serving/orchestration (gateway, accounts, RAG, the bridge components, the
 evolution worker). The mixle math always upstreams to the core. See `ARCHITECTURE.md`.
 
-> Requires `mixle.evolve` (currently on the mixle `evolve` branch) for the self-evolution routes.
+> Requires `mixle.evolve` (published on PyPI since mixle 0.6.1; this package pins `mixle>=0.6.1`) for
+> the self-evolution routes.
