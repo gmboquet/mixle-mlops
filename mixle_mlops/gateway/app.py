@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .. import __version__
 from ..config import Settings, get_settings
 from ..core.registry import ModelRegistry
 from ..image_gen import register_demo_image_model
@@ -116,6 +117,7 @@ async def _evolution_loop(app: FastAPI, interval: int) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    settings.check_secret_key()
     init_db()
     app.state.settings = settings
     app.state.registry = build_registry(settings)
@@ -133,7 +135,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="mixle-mlops", version="0.1.0",
+    app = FastAPI(title="mixle-mlops", version=__version__,
                   description="All-in-one AI platform: host mixle + open LLMs, OpenAI-compatible.",
                   lifespan=lifespan)
     app.add_middleware(
