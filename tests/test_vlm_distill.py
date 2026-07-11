@@ -8,6 +8,7 @@ The full ``examples/distill_vlm_to_structured.py`` needs CLIP + CIFAR; here we t
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from examples.distill_vlm_to_structured import StructuredClassifier, cheap_features
 
@@ -44,7 +45,7 @@ def test_confidence_is_calibrated_higher_where_correct():
 
 
 def test_cheap_features_are_encoder_free_fixed_size():
-    from PIL import Image
+    Image = pytest.importorskip("PIL.Image")
 
     img = Image.fromarray((np.random.rand(32, 32, 3) * 255).astype(np.uint8))
     feats = cheap_features([img, img])
