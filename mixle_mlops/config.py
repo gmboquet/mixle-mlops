@@ -110,6 +110,14 @@ class Settings(BaseSettings):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{(self.data_dir / 'platform.db').resolve()}"
 
+    def check_secret_key(self) -> None:
+        """Refuse to boot a cloud deployment on the well-known dev pepper (password-hash + OAuth-HMAC key)."""
+        if self.deployment == "cloud" and self.secret_key == "dev-insecure-change-me":
+            raise RuntimeError(
+                "cloud deployment requires MIXLE_SECRET_KEY to be set to a real secret "
+                "(the default dev-insecure-change-me pepper must not be used outside local dev)"
+            )
+
 
 @lru_cache
 def get_settings() -> Settings:
