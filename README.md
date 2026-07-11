@@ -13,6 +13,8 @@ usage.
 It runs end-to-end on a laptop (SQLite + filesystem + a local Ollama) and scales to the cloud (Postgres + object
 store + Redis) by changing config — no code change. Local-first, cloud-optional.
 
+## Quickstart
+
 ```sh
 cp deploy/.env.example deploy/.env          # set MIXLE_SECRET_KEY
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d gateway ollama
