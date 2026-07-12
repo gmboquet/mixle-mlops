@@ -1,36 +1,32 @@
 Release Notes
 =============
 
-``mixle-mlops`` is the serving and operations package for the 0.6.3 family. It
-documents gateway capabilities, model/provider surfaces, substrate serving,
-telemetry, pool jobs, creation verbs, and drift retraining.
+``mixle-mlops`` hosts Mixle models and OpenAI-compatible LLMs behind one
+gateway, with accounts and API keys, RAG and multimodal input, an MCP server,
+feedback and self-evolution loops, dataset export, and deployment helpers for
+local and cloud environments.
 
-Included
---------
+0.6.3
+-----
 
-* Sphinx manual with operator runbook, package map, API overview, validation,
-  and troubleshooting pages.
-* gateway capability guide.
-* Generated API pages for public modules and routes.
-* Documentation extra in package metadata.
-* ``docs/_build`` ignore rule for local builds.
-
-Validation Evidence
--------------------
-
-Record:
-
-* focused tests for touched routes/services;
-* local route smoke checks when server behavior changes;
-* backend configuration used for storage/cache tests;
-* whether external services were mocked, skipped, or genuinely exercised;
-* ``python -m sphinx -W -b html docs docs/_build/html``.
+0.6.3 is a documentation-completion release: the gateway, registry, training,
+and deployment surfaces built in earlier commits are now documented well
+enough to review. The manual covers the route-by-route operating contract
+(:doc:`gateway-operating-contract`), the substrate serving, telemetry, pool
+job, and creation-verb surfaces (:doc:`gateway-capabilities`), and
+distillation and cross-modal training
+(:doc:`model-distillation-and-cross-modal-training`), backed by a generated
+API reference for every public module and route.
 
 Known Risks
 -----------
 
-* Route tests can pass against in-memory state while production uses Redis,
-  databases, or object stores.
-* Demo scripts should not mutate deployment aliases or registry state.
-* Feedback/drift flows must preserve observed, candidate, approved, and
-  deployed states separately.
+Public release still needs:
+
+* a clean package build and install from a fresh environment;
+* route and service tests run together as a single release gate, not only
+  per-surface (see :doc:`validation` for the current focused test commands);
+* a recorded mock/skip/real status for every external service a route
+  depends on;
+* verification that this package still co-installs cleanly with the rest of
+  the Mixle family.

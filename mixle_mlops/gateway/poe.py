@@ -4,12 +4,12 @@ The math (exact) is `mixle.ops.product_of_experts`: a fused distribution `p(t) �
 token support. ``fuse_next_token`` builds it from each model's top-logprobs; ``poe_rerank`` is the sequence-level
 form (pick the candidate with the highest weighted sum of per-model log-probabilities — PoE in log space).
 
-HONEST BOUNDARY: true *per-token PoE-decoded generation* needs incremental decode control — feed the fused
-distribution back, sample, repeat — over a SHARED vocabulary. The OpenAI-compatible chat API exposes neither
-forced-token continuation nor (across heterogeneous tokenizers) an aligned vocabulary, so full token-by-token PoE
-decoding requires a logit-level serving integration (a vLLM/llama.cpp custom sampler + DeePEn-style vocab
-projection). What's built here is the exact fusion primitive + the sequence-level reranker — the parts the API
-actually supports — not a faked in-decoder masker."""
+Boundary: true per-token PoE-decoded generation needs incremental decode control over a shared vocabulary:
+feed the fused distribution back, sample, and repeat. The OpenAI-compatible chat API exposes neither forced-token
+continuation nor, across heterogeneous tokenizers, an aligned vocabulary. Full token-by-token PoE decoding
+therefore requires a logit-level serving integration such as a custom vLLM or llama.cpp sampler with vocabulary
+projection. This module provides the exact fusion primitive and the sequence-level reranker supported by the
+available API surface."""
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable

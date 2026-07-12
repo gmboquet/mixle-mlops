@@ -4,8 +4,8 @@
 ranking in numpy. Vectors are stored JSON-encoded (portable, no pgvector needed); for a user's working-set sizes
 (conversation memory + a handful of uploaded docs) an in-process numpy scan is more than fast enough.
 
-:class:`PgVectorStore` is a noted stub for a cloud deployment that wants server-side ANN (pgvector / a managed
-vector DB) instead of scanning in Python.
+:class:`PgVectorStore` records the cloud deployment contract for server-side
+ANN search with pgvector or a managed vector DB.
 """
 from __future__ import annotations
 
@@ -187,26 +187,29 @@ class LocalVectorStore(VectorStore):
 
 
 class PgVectorStore(VectorStore):
-    """Cloud stub: a Postgres + ``pgvector`` (or managed vector DB) backend that does ANN server-side instead of
-    scanning in Python. In a cloud deployment, create an ``embedding vector(dim)`` column with an IVFFlat/HNSW
-    index and translate :meth:`query` to ``ORDER BY embedding <=> :q LIMIT k``. Not implemented in the
-    local-first build — :class:`LocalVectorStore` is used unless ``deployment == 'cloud'`` and pgvector is wired."""
+    """Cloud vector-store contract for Postgres + ``pgvector`` or a managed vector DB.
+
+    A cloud deployment should create an ``embedding vector(dim)`` column with an
+    IVFFlat/HNSW index and translate :meth:`query` to
+    ``ORDER BY embedding <=> :q LIMIT k``. The local-first build uses
+    :class:`LocalVectorStore` until a deployment wires server-side ANN search.
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError(
-            "PgVectorStore is a cloud stub; enable pgvector and wire it for server-side ANN."
+            "PgVectorStore requires a configured pgvector or managed vector backend."
         )
 
-    def add(self, user_id, items):  # pragma: no cover - stub
+    def add(self, user_id, items):  # pragma: no cover - abstract backend method
         raise NotImplementedError
 
-    def query(self, user_id, vector, k=5, filter=None):  # pragma: no cover - stub
+    def query(self, user_id, vector, k=5, filter=None):  # pragma: no cover - abstract backend method
         raise NotImplementedError
 
-    def delete_source(self, user_id, source_id):  # pragma: no cover - stub
+    def delete_source(self, user_id, source_id):  # pragma: no cover - abstract backend method
         raise NotImplementedError
 
-    def count(self, user_id, filter=None):  # pragma: no cover - stub
+    def count(self, user_id, filter=None):  # pragma: no cover - abstract backend method
         raise NotImplementedError
 
 

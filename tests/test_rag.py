@@ -5,7 +5,7 @@ the **local-fallback embedder** (deterministic hashing — no embeddings server 
 
 Covers:
   * upload a small text 'document', list it, search it, get a relevant hit;
-  * index a fake conversation and retrieve it;
+  * index a synthetic conversation and retrieve it;
   * ``build_rag_messages`` prepends a retrieved-context system block;
   * the embedder fallback, chunking, and document text extraction directly.
 """

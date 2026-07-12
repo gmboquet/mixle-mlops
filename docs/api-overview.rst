@@ -1,8 +1,10 @@
 API Overview
 ============
 
-The generated API reference is available in :doc:`api/modules`. This page maps
-the larger package into operational areas.
+The generated API reference is available in :doc:`api/modules`. It covers the
+public modules and their docstring-documented interfaces; internal helpers
+without docstrings are intentionally kept out of the published reference. This
+page maps the larger package into operational areas.
 
 Gateway
 -------
@@ -19,7 +21,7 @@ Gateway
 ``mixle_mlops.gateway.auth`` and ``mixle_mlops.gateway.verifiers``
     Request authentication and verifier helpers.
 
-Models And Providers
+Models and Providers
 --------------------
 
 ``mixle_mlops.models.*``
@@ -30,7 +32,7 @@ Models And Providers
     Adapter, registry, predictive, and decision helpers that bridge Mixle
     capabilities into serving workflows.
 
-Data, RAG, And Storage
+Data, RAG, and Storage
 ----------------------
 
 ``mixle_mlops.datasets.*``
@@ -58,3 +60,50 @@ Learning Loops
 
 ``mixle_mlops.drift_retrain``
     Drift-triggered retraining entry point.
+
+Accounts, Conversations, and Access Control
+-------------------------------------------
+
+``mixle_mlops.accounts.*``
+    Account models, OAuth helpers, device-code flows, service helpers, and
+    security utilities. These modules define who can call the gateway and how
+    API keys or account identities are represented.
+
+``mixle_mlops.conversations.*``
+    Conversation records, export helpers, and service functions for preserving
+    chat state and review evidence across gateway calls.
+
+``mixle_mlops.config`` and ``mixle_mlops.app``
+    Configuration loading and application assembly. Review these modules when
+    changing environment variables, storage paths, provider defaults, or server
+    startup behavior.
+
+Multimodal and Creation Surfaces
+--------------------------------
+
+``mixle_mlops.multimodal.*``
+    Content records and storage helpers for image, text, and mixed payloads.
+    Use these modules when a route needs to preserve modality metadata instead
+    of flattening everything into text.
+
+``mixle_mlops.image_gen.*``
+    Image-generation adapter boundaries, including local diffusion integration
+    points. Treat provider-backed image generation as an optional capability
+    with explicit dependency and credential requirements.
+
+``mixle_mlops.mcp.*``
+    MCP client, server, and schema-bridge helpers for tool integration. These
+    modules should preserve tool provenance, approval requirements, and
+    request/response schemas.
+
+Training and Promotion Review
+-----------------------------
+
+``mixle_mlops.training.*``
+    Training service and model records used by distillation and fine-tuning
+    workflows.
+
+``mixle_mlops.seed_registry`` and ``mixle_mlops.core.registry``
+    Registry and seed-model helpers. Review these modules with the promotion
+    path: a trained or distilled artifact should not become the served default
+    without recorded evaluation evidence and an explicit deployment decision.

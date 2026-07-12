@@ -45,4 +45,3 @@ Module contents
 .. automodule:: mixle_mlops
    :members:
    :show-inheritance:
-   :undoc-members:

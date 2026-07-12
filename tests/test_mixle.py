@@ -171,7 +171,7 @@ def test_chat_route_summarizes_predict(client):
 
 
 def test_capability_error_maps_to_422(client):
-    """A model that supports nothing mixle-y yields 422 on /predict (the echo LLM stub)."""
+    """A model without Mixle capabilities yields 422 on ``/predict``."""
     headers = {"Authorization": f"Bearer {_key(client, 'e@t.com')}"}
     r = client.post("/v1/mixle/predict", headers=headers, json={"model": "echo", "records": [None]})
     assert r.status_code == 422

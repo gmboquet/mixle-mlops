@@ -1,21 +1,21 @@
-"""LIVE tier-0 dogfood — every seam real, end to end, in one command.
+"""Live tier-0 dogfood check for the local agent-to-gateway loop.
 
     python examples/dogfood_tier0_live.py [--agent-repo ~/codex/mixle-agent]
 
-What actually happens (no fakes at any layer):
+What this command exercises:
 
   1. mixle distills a tool-caller from a rigid teacher (selection = conformal solve, per-argument
      calibrated extractors) and saves the artifact under a scratch registry.
-  2. A real mixle-mlops gateway boots on a free port (uvicorn subprocess) and serves it at
-     /v1/toolcallers/{name} behind real auth (fresh /auth/signup key).
-  3. The orchestrator picks, from FRESH traffic, one request the artifact provably answers locally
-     and one it provably escalates (decided by the artifact itself before serving — no guessing).
-  4. mixle-agent's REAL Tier0Router (TypeScript, real fetch) runs against the live gateway via
+  2. A mixle-mlops gateway boots on a free port (uvicorn subprocess) and serves it at
+     /v1/toolcallers/{name} behind auth using a fresh /auth/signup key.
+  3. The orchestrator picks, from fresh traffic, one request the artifact answers locally
+     and one it escalates, with both decisions made by the artifact before serving.
+  4. mixle-agent's Tier0Router (TypeScript fetch) runs against the live gateway via
      `node --test tier0.live.test.ts`: the confident request must come back with the expected tool
      and args; the unsure one must escalate, and the posted "frontier" call must be accepted.
   5. The harvest is verified ON DISK in the registry — the trace that trains the next round.
 
-Exit 0 = the dogfood loop is closed: agent -> tiny model -> tool call / escalate -> harvest.
+Exit 0 means the loop was exercised: agent -> local model -> tool call or escalation -> harvest.
 """
 
 from __future__ import annotations

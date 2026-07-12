@@ -5,7 +5,7 @@ This quickstart starts the MLOps gateway with the built-in echo model. It is
 the smallest public path for proving the package can serve requests without
 cloud credentials or a model registry.
 
-Install For Local Gateway Work
+Install for Local Gateway Work
 ------------------------------
 
 From the repository root:
@@ -17,7 +17,7 @@ From the repository root:
 Use additional extras only for the surface under review, such as datasets,
 structured outputs, object storage, or optional cloud backends.
 
-Start The Gateway
+Start the Gateway
 -----------------
 
 Run the FastAPI gateway:
@@ -29,7 +29,7 @@ Run the FastAPI gateway:
 The gateway always registers the dependency-free ``echo`` adapter, so this
 startup path should not require a network LLM provider.
 
-Smoke Check Health And Chat
+Smoke Check Health and Chat
 ---------------------------
 
 In another terminal:
@@ -44,7 +44,7 @@ For an OpenAI-compatible chat smoke, post to the chat route with model
 successful check should prove the gateway starts, the registry contains the
 echo model, and the route returns without contacting an external provider.
 
-Serve A Packaged Mixle Model
+Serve a Packaged Mixle Model
 ----------------------------
 
 The thin model-server surface in ``mixle_mlops.app`` serves a model promoted in
@@ -60,18 +60,8 @@ a Mixle production registry:
 Use this path only when a registry exists. Gateway validation and packaged
 model serving are separate checks.
 
-Record Release Evidence
------------------------
-
-For a release PR, record:
-
-* install command and extras;
-* gateway startup command;
-* health response;
-* model list response;
-* one route smoke check;
-* whether backends were echo, mocked, local, or real provider calls;
-* any credentials or external services intentionally not exercised.
+Next Steps
+----------
 
 Continue with :doc:`operator-runbook` for operational boundaries and
 :doc:`model-distillation-and-cross-modal-training` for training and promotion

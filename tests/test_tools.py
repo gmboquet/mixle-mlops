@@ -1,5 +1,6 @@
 """Tool calling + the server-side agentic loop: schema round-trip, the tool registry over the model catalog,
-the reason→act→observe loop with a fake tool-calling model, and end-to-end agent mode through the chat route."""
+the reason-act-observe loop with a deterministic tool-calling model, and end-to-end agent mode through the chat
+route."""
 import asyncio
 
 import mixle_mlops.storage.db as db

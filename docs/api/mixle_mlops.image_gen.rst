@@ -16,4 +16,3 @@ Module contents
 .. automodule:: mixle_mlops.image_gen
    :members:
    :show-inheritance:
-   :undoc-members:

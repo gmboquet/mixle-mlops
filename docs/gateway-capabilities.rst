@@ -1,10 +1,10 @@
 Gateway Capabilities
 ====================
 
-This guide describes ``mixle-mlops`` as the gateway and operations package
-for Mixle. Core modeling stays in ``mixle`` and sibling packages; this package
-owns authentication, persistence, queues, registry boundaries, route
-registration, spend gates, and deployment-adjacent service behavior.
+``mixle-mlops`` is the gateway and operations package for Mixle. Core modeling
+stays in ``mixle`` and sibling packages; this package owns authentication,
+persistence, queues, registry boundaries, route registration, spend gates, and
+deployment-adjacent service behavior.
 
 Scope
 -----
@@ -74,7 +74,7 @@ Training-row extraction is evidence for learned orchestration policies. Static
 policies remain the default until a learned policy is receipted as no worse on
 the recorded history.
 
-Pool Jobs And Spend Rails
+Pool Jobs and Spend Rails
 -------------------------
 
 Pool endpoints enforce budget and quota before work starts:
@@ -87,9 +87,9 @@ Pool endpoints enforce budget and quota before work starts:
   fingerprint.
 
 Unsupported operation kinds should be recorded as rejected outcomes, not
-untracked worker failures.
+opaque worker failures.
 
-Creation, Model Manifests, And Drift
+Creation, Model Manifests, and Drift
 ------------------------------------
 
 Creation routes are HTTP twins of core Mixle artifact operations. Stored
@@ -105,20 +105,8 @@ drift is detected, it refits, registers, promotes a new production version, and
 rolls the reference forward. If no drift is detected, the production alias is
 untouched.
 
-Validation Map
---------------
-
-Release validation should cover:
-
-* substrate ingest, retrieval, context abstention, factuality, publish, and
-  proposal review;
-* telemetry push, stats, training rows, unknown-kind rejection, persistence,
-  and per-user scoping;
-* pool budget rejection, confirmation rails, quota, artifact round trip, spend
-  accounting, and queue listing;
-* create, calibration, UQ degradation, simulation, synthesis, skills, and
-  lineage;
-* drift-triggered promotion and no-drift no-op behavior.
+Focused tests for these surfaces are named in :doc:`validation`; run them
+together before changing any route family described above.
 
 Boundaries
 ----------

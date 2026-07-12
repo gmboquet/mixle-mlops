@@ -20,4 +20,3 @@ Module contents
 .. automodule:: mixle_mlops.evolve
    :members:
    :show-inheritance:
-   :undoc-members:

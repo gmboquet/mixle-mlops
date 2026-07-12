@@ -29,13 +29,13 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:11434/v1"
     llm_api_key: str = "ollama"
     llm_models: list[str] = []                       # ids to expose from the LLM backend ([] = discover)
-    # per-model backends — host local + cloud models in ONE registry (the cascade router prerequisite). A
-    # "provider" of "anthropic"/"gemini" uses that provider's NATIVE API; absent/"openai" uses the OpenAI-
-    # compatible proxy (Ollama, vLLM, OpenAI, ...). So Claude, Gemini, and open models coexist in one gateway:
-    #   MIXLE_LLM_BACKENDS='{"llama3.2":{"base_url":"http://ollama:11434/v1"},
-    #                        "claude":{"provider":"anthropic","api_key":"sk-ant-...","upstream_model":"claude-opus-4-8"},
-    #                        "gemini":{"provider":"gemini","api_key":"...","upstream_model":"gemini-2.0-flash"},
-    #                        "gpt":{"base_url":"https://api.openai.com/v1","api_key":"sk-...","upstream_model":"gpt-4o"}}'
+    # Per-model backends host local and cloud models in one registry, which the cascade router requires. A
+    # "provider" of "anthropic"/"gemini" uses that provider's native API; absent/"openai" uses the OpenAI-
+    # compatible proxy (Ollama, vLLM, OpenAI, ...), so native and OpenAI-compatible models coexist in one gateway:
+    #   MIXLE_LLM_BACKENDS='{"local":{"base_url":"http://ollama:11434/v1"},
+    #                        "anthropic_model":{"provider":"anthropic","api_key":"...","upstream_model":"provider-model"},
+    #                        "gemini_model":{"provider":"gemini","api_key":"...","upstream_model":"provider-model"},
+    #                        "openai_model":{"base_url":"https://api.openai.com/v1","api_key":"...","upstream_model":"provider-model"}}'
     llm_backends: dict[str, dict[str, str]] = {}
     default_model: str = "echo"
 

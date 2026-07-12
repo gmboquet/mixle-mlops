@@ -1,4 +1,11 @@
-"""Core model contract + registry (backend-agnostic)."""
+"""Backend-agnostic model contracts and registry exports.
+
+The core namespace exposes the request, response, adapter, capability, and
+registry objects shared by gateway routes and provider implementations. It
+should stay independent of a particular storage backend or hosted model so
+tests can exercise local, mocked, and OpenAI-compatible providers through the
+same public contract.
+"""
 from .adapters import (
     CapabilityError,
     ChatChoice,

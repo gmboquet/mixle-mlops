@@ -45,10 +45,9 @@ README in the neural-experts example directory:
 Release Execution Status
 ------------------------
 
-The current documentation state does not prove these examples execute
-end-to-end. Before a public release, each example must be recorded as
-``passed``, ``failed``, ``timed_out``, ``blocked``, or ``skipped`` with the
-reason.
+Nothing here proves these examples execute end-to-end yet. Before a public
+release, each example must be recorded as ``passed``, ``failed``,
+``timed_out``, ``blocked``, or ``skipped`` with the reason.
 
 Gateway examples must also record:
 

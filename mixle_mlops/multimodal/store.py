@@ -1,5 +1,5 @@
 """Blob storage for multimodal uploads. ``BlobStore`` is the abstraction; ``LocalBlobStore`` writes under
-``get_settings().data_dir/'blobs'`` (local-first), and ``S3BlobStore`` is a noted stub for the cloud deployment.
+``get_settings().data_dir/'blobs'`` and ``S3BlobStore`` records the cloud deployment contract.
 
 A blob is addressed by an opaque id and exposes a retrievable URL *path* (``/v1/files/{id}/content``) that the
 gateway serves back. The same id is what a chat message references; ``content.resolve_content`` turns that
@@ -105,9 +105,12 @@ class LocalBlobStore(BlobStore):
 
 
 class S3BlobStore(BlobStore):
-    """Cloud stub: in a cloud deployment this writes to S3/object store and ``data_url`` would instead return a
-    short-lived signed URL (so large images aren't inlined into every request). Wire ``boto3`` against
-    ``get_settings().s3_bucket`` / ``s3_endpoint`` here. Not implemented in the local-first build."""
+    """Cloud blob-store contract for S3-compatible object storage.
+
+    A cloud deployment should write bytes to object storage and return
+    short-lived signed URLs from ``data_url`` so large images are not inlined
+    into every request. The local-first build uses :class:`LocalBlobStore`.
+    """
 
     def __init__(self, bucket: str | None = None, endpoint: str | None = None):
         s = get_settings()
@@ -116,7 +119,7 @@ class S3BlobStore(BlobStore):
 
     def _unavailable(self) -> NotImplementedError:
         return NotImplementedError(
-            "S3BlobStore is a cloud stub; install boto3 and configure MIXLE_S3_BUCKET to enable it."
+            "S3BlobStore requires boto3 and MIXLE_S3_BUCKET configuration."
         )
 
     def put(self, data: bytes, *, filename: str, content_type: str) -> BlobRecord:

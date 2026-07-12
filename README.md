@@ -28,7 +28,7 @@ curl localhost:8000/v1/models               # OpenAI-compatible
 | **Multimodal** (image inputs), **RAG** (PDF/DOCX/PPTX upload + retrieval), **image gen**, **dataset gen** | `/v1/files`, `/v1/documents`, `/v1/rag/search`, `/v1/images/generations`, `/v1/datasets` |
 | **Conversations** (persisted threads + json/markdown/pdf export) | `/v1/conversations` |
 | **Caching + rate limiting** (memory / Redis), **MCP server** | `extra` flags, `MIXLE_REDIS_URL`, `/mcp` |
-| **Chat UI** (Next.js, Claude/ChatGPT-like) | `frontend/` |
+| **Chat UI** (Next.js, assistant-style conversation surface) | `frontend/` |
 | **Multi-cloud deploy** (AWS/Azure/GCP/Alicloud) | Helm chart + Terraform + `mixle-mlops init-cloud` |
 | **Universal cloud compute** (GPU VMs, marketplaces, managed k8s, on-prem) | Any OpenAI-compatible endpoint + generic Docker/Kubernetes GPU recipes |
 
@@ -41,16 +41,16 @@ Build it with:
 
 ```sh
 python -m pip install -e ".[docs]"
-make -C docs html
+make -C docs html SPHINXOPTS="-W --keep-going"
 ```
 
-The 0.6.3 gateway surfaces are documented in
-[`docs/0.6.3-gateway-capabilities.md`](docs/0.6.3-gateway-capabilities.md):
-substrate serving, telemetry, pool jobs, creation verbs, Mixle model manifests,
-and drift retraining.
+Gateway surfaces are documented in
+[`docs/gateway-capabilities.rst`](docs/gateway-capabilities.rst): substrate
+serving, telemetry, pool jobs, creation verbs, Mixle model manifests, and drift
+retraining.
 
 Release notes and the current changelog are in
-[`docs/release-0-6-3.rst`](docs/release-0-6-3.rst) and
+[`docs/release-notes.rst`](docs/release-notes.rst) and
 [CHANGELOG.md](CHANGELOG.md).
 
 ## The mixle bridge — frontier quality on a laptop

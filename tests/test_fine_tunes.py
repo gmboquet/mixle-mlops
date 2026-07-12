@@ -27,8 +27,10 @@ from mixle_mlops.gateway.routes import fine_tunes as ft_routes
 
 
 class _RuleTeacher(ModelAdapter):
-    """A stand-in hosted teacher (as a native Claude/Gemini adapter would be): applies the churn rule and replies
-    with the label. Distilling it exercises the platform's teacher->tiny-student loop without a network call."""
+    """A stand-in hosted teacher that applies the churn rule and replies with the label.
+
+    Distilling it exercises the platform's teacher-to-student loop without a network call.
+    """
 
     kind = "llm"
 
@@ -159,7 +161,7 @@ def test_cancel_terminal_job_conflicts(client):
 
 
 def test_distill_hosted_teacher_into_structured_student(client):
-    # register a hosted teacher (stands in for a Claude/Gemini adapter) on the live registry
+    # Register a hosted teacher stand-in on the live registry.
     client.app.state.registry.register(_RuleTeacher("teacher-llm"))
     headers = {"Authorization": f"Bearer {_key(client, 'distill@t.com')}"}
     # unlabeled feature records + a teacher model -> the platform labels then distills a tiny structured student

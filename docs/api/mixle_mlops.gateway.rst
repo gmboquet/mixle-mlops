@@ -34,4 +34,3 @@ Module contents
 .. automodule:: mixle_mlops.gateway
    :members:
    :show-inheritance:
-   :undoc-members:

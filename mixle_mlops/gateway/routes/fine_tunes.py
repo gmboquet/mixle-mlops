@@ -48,7 +48,7 @@ class FineTuneBody(BaseModel):
     records: list[Any] = Field(default_factory=list)     # feature records (dicts or tuples) for the structured backend
     label_field: str | None = None                       # key in each record holding the target label
     labels: list[str] | None = None                      # OR an explicit parallel label list
-    teacher_model: str | None = None                     # OR distill: a hosted model (any LLM, incl. Claude/Gemini) labels the records
+    teacher_model: str | None = None                     # OR distill: a hosted model labels the records
     teacher_prompt: str | None = None                    # instruction given to the teacher when labeling
     teacher_labels: list[str] | None = None              # candidate labels to snap the teacher's reply to
     n_components: int = 1                                 # >1 -> a latent-regime mixture-of-trees student

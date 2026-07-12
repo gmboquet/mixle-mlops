@@ -5,7 +5,7 @@ Accepts ``{model, prompt, n, size}`` (the OpenAI Images API shape), resolves the
 store), and returns ``{created, data:[{url, b64_json?}]}``. Behind ``Depends(require_user)``.
 
 Wiring (integrator): ``app.include_router(images.router, prefix="/v1", tags=["images"])`` in ``gateway/app.py``;
-optionally register a stub image model at startup via ``register_demo_image_model(registry)``."""
+optionally register a local demo image model at startup via ``register_demo_image_model(registry)``."""
 from __future__ import annotations
 
 import time

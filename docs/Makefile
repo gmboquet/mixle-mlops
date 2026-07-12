@@ -1,11 +1,20 @@
-SPHINXBUILD ?= python -m sphinx
-SOURCEDIR = .
-BUILDDIR = _build
+# Minimal Sphinx makefile for local documentation builds.
 
-.PHONY: html clean
+SPHINXOPTS    ?=
+SPHINXBUILD   ?= sphinx-build
+SOURCEDIR     = .
+BUILDDIR      = _build
 
-html:
-	$(SPHINXBUILD) -b html $(SOURCEDIR) $(BUILDDIR)/html
+.PHONY: help clean html linkcheck
+
+help:
+	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
 
 clean:
-	rm -rf $(BUILDDIR)
+	rm -rf "$(BUILDDIR)"
+
+html:
+	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+
+linkcheck:
+	@$(SPHINXBUILD) -M linkcheck "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)

@@ -33,3 +33,30 @@ Package Map
 
 ``deploy`` and ``frontend``
     Deployment assets and the Next.js chat UI.
+
+``docs/api``
+    Generated API pages for gateway, provider, storage, account, feedback,
+    training, RAG, MCP, multimodal, and route modules. Missing API pages hide
+    operational behavior and should block public release review.
+
+Ownership Boundaries
+--------------------
+
+Route modules own HTTP behavior and error mapping. Core modules own registry,
+decision, and capability bridges. Model/provider modules own provider
+adaptation and should not mutate deployment state directly. Storage and cache
+modules own persistence semantics. Frontend code should expose those states
+without becoming the source of truth for access policy, registry contents, or
+deployment decisions. Keeping those boundaries visible helps a reviewer trace
+a request from authentication through model execution, artifact capture,
+feedback, and promotion evidence. Training helpers should write enough
+metadata for ``mixle-aifactory`` and release review to understand where an
+artifact came from and why it is safe to promote.
+
+Cross-Package Boundary
+-----------------------
+
+When a workflow crosses package boundaries, keep the operational mutation in
+``mixle-mlops`` and the scientific or demo logic in the owning sibling package.
+For example, ``mixle-demos`` may produce a report, but registry mutation,
+serving aliases, credentials, and rollback records belong here.

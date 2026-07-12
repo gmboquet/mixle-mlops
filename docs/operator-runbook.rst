@@ -41,7 +41,7 @@ offline/demo mode.
 The route-level operating contract is documented in
 :doc:`gateway-operating-contract`.
 
-Artifacts And Receipts
+Artifacts and Receipts
 ----------------------
 
 Operational artifacts should be traceable. When a route produces or promotes
@@ -57,7 +57,7 @@ an artifact, record:
 This should line up with ``mixle-knowledge`` receipt and verification
 contracts rather than inventing a second audit language.
 
-Drift And Feedback
+Drift and Feedback
 ------------------
 
 Feedback, drift, and retraining routes are operationally sensitive. A release
@@ -77,7 +77,7 @@ review should distinguish:
 
 Do not collapse these states into a single "updated" flag.
 
-Storage And Caches
+Storage and Caches
 ------------------
 
 Cache and storage backends should be replaceable. Local tests may use in-memory
@@ -93,15 +93,3 @@ Deployment helpers can prepare infrastructure, containers, or job specs. They
 should not hide irreversible changes behind demo scripts. Promotion into a
 serving alias should flow through explicit decision records and audited
 endpoints.
-
-Release Review Checklist
-------------------------
-
-For a documentation or gateway PR, record:
-
-* install command and optional extras used;
-* focused tests for changed routes or services;
-* docs build with warnings treated as errors;
-* route smoke checks when a server surface changed;
-* whether external services were mocked, skipped, or genuinely exercised;
-* any known operational gaps.

@@ -1,4 +1,4 @@
-Model Distillation And Cross-Modal Training
+Model Distillation and Cross-Modal Training
 ===========================================
 
 ``mixle-mlops`` is the right package for serving and operating distilled
@@ -77,7 +77,7 @@ Cross-modal workflows should keep modality boundaries visible:
 Training data should store modality-specific metadata and a joined example ID.
 If one modality is synthetic or generated, label it at the example level.
 
-Gateway And Registry Responsibilities
+Gateway and Registry Responsibilities
 -------------------------------------
 
 The gateway should expose stable routes for:
@@ -92,17 +92,3 @@ The gateway should expose stable routes for:
 The registry should keep aliases, candidate versions, approval decisions, and
 rollback targets separate. Tests should prove that an unapproved candidate
 cannot become the production alias.
-
-Release Evidence
-----------------
-
-A release that claims distillation or cross-modal training support should
-record:
-
-* dataset export command and artifact hash;
-* training record schema validation;
-* one successful local or mocked training job;
-* one failed or rejected promotion path;
-* route smoke tests for the relevant gateway endpoints;
-* registry state before and after promotion;
-* clean-install test evidence with optional dependencies declared.

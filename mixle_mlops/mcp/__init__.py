@@ -4,7 +4,7 @@ Two halves:
 
 * ``server`` — exposes the platform's hosted models as MCP **tools** (a ``chat`` tool per model plus a
   ``list_models`` tool) over a :class:`~mixle_mlops.core.registry.ModelRegistry`, so any MCP-speaking client
-  (Claude Desktop, an agent, another model) can discover and invoke the models.
+  (a desktop client, an agent, or another model) can discover and invoke the models.
 * ``client`` — a small MCP **client** so hosted models can call *external* MCP tools (connect, list, call) over
   stdio or HTTP.
 

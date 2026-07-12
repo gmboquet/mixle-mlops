@@ -4,7 +4,7 @@ Overview
 ``mixle-mlops`` owns the operational layer around Mixle models. The package is
 responsible for serving, persistence, account flows, provider bridges,
 feedback, datasets, object storage, RAG, multimodal payloads, MCP integration,
-and deployment scaffolding.
+and deployment support.
 
 Package Boundaries
 ------------------
@@ -23,6 +23,11 @@ The package owns:
 
 The package does not own Mixle's core probability models, PDE kernels, discrete
 numerical methods, or notebook content. It adapts and serves those packages.
+
+Operational ownership starts when a workflow needs authentication, persistence,
+provider routing, artifact storage, feedback capture, promotion state, or a
+served API route. Keep those responsibilities here so sibling packages do not
+each invent their own gateway semantics.
 
 Primary Surfaces
 ----------------
@@ -45,3 +50,7 @@ Primary Surfaces
 ``mixle_mlops.storage`` and ``mixle_mlops.cache``
     Database, object store, in-memory cache, Redis cache, response cache, and
     rate-limit primitives.
+
+A feature is not operationally ready merely because the route imports: release
+reviewers should be able to trace a request from entry route to provider call,
+storage write, emitted artifact, and any registry mutation.

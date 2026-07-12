@@ -5,8 +5,8 @@ Two backends share one adapter:
 * ``openai`` (default when a base URL is configured): POST ``{model, prompt, n, size, response_format:"b64_json"}``
   to an OpenAI-compatible ``{base_url}/images/generations`` server (DALL·E-style / a local SD server / a hosted
   API). The returned base64 images are decoded and stored in the platform :class:`BlobStore`.
-* ``stub`` / ``echo``: dependency-free. Synthesizes a tiny PNG placeholder per requested image so the platform
-  runs end-to-end with no backend (tests + local dev).
+* local synthetic mode: dependency-free. Synthesizes a tiny PNG per requested
+  image so the platform runs end-to-end without an external image service.
 
 Every generated image is written to the blob store and returned as ``{id, url, b64_json}`` — ``url`` being the
 gateway path (``/v1/files/{id}/content``) that serves the bytes back, mirroring the multimodal upload flow.
@@ -30,13 +30,13 @@ from ..core.adapters import (
 )
 from ..multimodal.store import BlobStore, get_blob_store
 
-# Standard OpenAI image sizes; used only to size the stub placeholder sensibly (it stays 1x1 regardless of the
-# declared size to keep the bytes tiny — the metadata records the requested size for honesty).
+# Standard OpenAI image sizes. Local synthetic mode records the requested size
+# while keeping the generated PNG tiny.
 _DEFAULT_SIZE = "1024x1024"
 
 
 def _png_1x1(rgba: tuple[int, int, int, int] = (127, 127, 127, 255)) -> bytes:
-    """A valid 1x1 RGBA PNG with the given pixel colour — the stub backend's placeholder image.
+    """Return a valid 1x1 RGBA PNG with the given pixel colour.
 
     Hand-built (no Pillow dependency): IHDR + a single zlib-compressed scanline + IEND."""
 
@@ -56,7 +56,7 @@ def _png_1x1(rgba: tuple[int, int, int, int] = (127, 127, 127, 255)) -> bytes:
 
 
 class ImageGenAdapter(ModelAdapter):
-    """Adapter for an OpenAI-compatible image-generation backend (or a built-in stub)."""
+    """Adapter for an OpenAI-compatible image-generation backend or local synthetic mode."""
 
     kind = "image"
 
@@ -143,7 +143,7 @@ class ImageGenAdapter(ModelAdapter):
         return out
 
     def _stub_images(self, prompt: str, n: int) -> list[str]:
-        # Deterministic-ish placeholder: vary the grey level by index so multiple images differ.
+        # Vary the grey level by index so multiple local synthetic images differ.
         images: list[str] = []
         for i in range(n):
             level = (96 + (i * 32 + (hash(prompt) & 0x3F)) % 128) & 0xFF
@@ -189,5 +189,5 @@ class ImageGenAdapter(ModelAdapter):
 
 
 def register_demo_image_model(registry, name: str = "stub-image", store: BlobStore | None = None):
-    """Register a dependency-free stub image model so ``/v1/images/generations`` works with no backend."""
+    """Register a dependency-free image model for local ``/v1/images/generations`` smoke tests."""
     return registry.register(ImageGenAdapter(name, backend="stub", store=store))

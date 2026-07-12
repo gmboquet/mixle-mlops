@@ -1,4 +1,9 @@
-"""Account operations: create users, authenticate, mint/resolve/revoke API keys."""
+"""Account and API-key service operations for gateway authentication.
+
+The service layer owns user creation, password authentication, API-key minting,
+lookup, listing, and revocation while keeping persistence details behind the
+SQLModel session boundary.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timezone

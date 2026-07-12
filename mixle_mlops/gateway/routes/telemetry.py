@@ -1,16 +1,15 @@
-"""Telemetry sink -- the control-plane endpoint local daemons push decision events to (L2 seed).
+"""Telemetry sink for gateway decision events.
 
-The pysparkplug workplan records every platform decision (fit, placement, route, escalation, context,
-reason, pool_job, drift) as a typed, PII-free ``mixle.telemetry.Event`` in a local buffer. This route
-is the shared sink: a local daemon POSTs its accumulated events here, and the learned-orchestration
-workstream (J) reads them back as ``(features, choice, outcome)`` training rows -- the static policies
-are the teachers, the learned routers/placers earn traffic only when receipted never-worse against
-this history.
+The platform records decisions such as fit, placement, route, escalation,
+context, reason, pool job, and drift as typed, PII-free
+``mixle.telemetry.Event`` values. This route is the shared sink: a local daemon
+POSTs accumulated events here, and learning or evaluation jobs can read them
+back as ``(features, choice, outcome)`` training rows.
 
 Events are scoped per user (the account that pushed them) and persisted as JSONL under
 ``{registry_root}/telemetry/{user}/events.jsonl`` -- the same on-disk format ``mixle.telemetry.Telemetry``
-writes, so the local buffer and the shared sink are one lineage. Events carry decision FEATURES and
-OUTCOMES only, never raw user content, so publishing them leaks nothing.
+writes, so the local buffer and the shared sink share one lineage. Events carry
+decision features and outcomes only, never raw user content.
 
   * ``POST /v1/telemetry``               -- ``{"events": [{kind, features, choice, outcome, tags}, ...]}``.
   * ``GET  /v1/telemetry/stats``         -- event counts by kind.
@@ -84,7 +83,8 @@ def stats(user: User = Depends(require_user)) -> dict[str, Any]:
 
 @router.get("/telemetry/training/{kind}")
 def training(kind: str, user: User = Depends(require_user)) -> dict[str, Any]:
-    """The (features, choice, outcome) rows for a decision kind -- what workstream J learns on."""
+    """Return feature, choice, and outcome rows for a decision kind."""
+
     rec = _recorder(user)
     rows = [{"features": f, "choice": c, "outcome": o} for f, c, o in rec.training_rows(kind)]
     return {"kind": kind, "n": len(rows), "rows": rows}

@@ -16,4 +16,3 @@ Module contents
 .. automodule:: mixle_mlops.training
    :members:
    :show-inheritance:
-   :undoc-members:

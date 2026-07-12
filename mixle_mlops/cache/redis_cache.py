@@ -13,8 +13,11 @@ from .base import Cache
 
 
 class RedisCache(Cache):
-    """A ``Cache`` over a Redis server. Construct with a ``redis://`` URL (or pass a preconfigured client,
-    handy for tests with ``fakeredis``). Counters use native atomic ops so multiple replicas agree."""
+    """A ``Cache`` over a Redis server.
+
+    Construct with a ``redis://`` URL, or pass a preconfigured client in tests.
+    Counters use native atomic operations so multiple replicas agree.
+    """
 
     def __init__(self, url: str | None = None, *, client: Any = None) -> None:
         if client is not None:

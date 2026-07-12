@@ -17,7 +17,7 @@ import fastapi  # noqa: F401,E402
 
 project = "mixle-mlops"
 author = "Grant Boquet"
-copyright = "2014-2026, Grant Boquet and contributors"
+copyright = "2026, Grant Boquet"
 
 pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 release = pyproject["project"]["version"]
@@ -72,6 +72,6 @@ intersphinx_mapping = {
 }
 
 html_theme = "furo"
-html_title = f"mixle-mlops {release}"
+html_title = "mixle-mlops"
 html_static_path = []
 todo_include_todos = False

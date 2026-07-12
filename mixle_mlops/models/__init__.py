@@ -1,4 +1,4 @@
-"""Model adapters: the echo stub, the OpenAI-compatible LLM proxy, the native Anthropic/Gemini providers, the
+"""Model adapters: the echo adapter, the OpenAI-compatible LLM proxy, the native Anthropic/Gemini providers, the
 mixle model, and the distilled task cascade."""
 from .echo import EchoAdapter
 from .openai_compat import OpenAICompatAdapter

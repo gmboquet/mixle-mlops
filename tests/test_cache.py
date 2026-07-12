@@ -1,12 +1,12 @@
 """Build caching + concurrency primitives.
 
-Covers: memory cache get/set/ttl + atomic incr; exact response-cache hit/miss; semantic cache with a stub
-embedder (numpy vectors) hitting a near-duplicate; the rate limiter blocking past the budget (both fixed
+Covers: memory cache get/set/ttl + atomic incr; exact response-cache hit/miss; semantic cache with a deterministic
+embedder (NumPy vectors) hitting a near-duplicate; the rate limiter blocking past the budget (both fixed
 window and token bucket); and the ``/v1/cache/stats`` route end-to-end.
 
 Self-contained: builds the app via ``create_app()``, includes the cache router, signs up for a key. The
-Redis path is exercised only if ``redis`` (and a reachable server, via ``fakeredis``) is importable —
-skipped otherwise to stay dependency-light.
+Redis path is exercised only if ``redis`` and an in-memory Redis test client are importable; it is skipped
+otherwise to stay dependency-light.
 """
 from __future__ import annotations
 

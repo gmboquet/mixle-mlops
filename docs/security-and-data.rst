@@ -1,4 +1,4 @@
-Security And Data Handling
+Security and Data Handling
 ==========================
 
 ``mixle-mlops`` is the package most likely to hold credentials, account state,
@@ -12,7 +12,7 @@ Do not commit API keys, OAuth tokens, JWT secrets, cloud credentials, database
 passwords, object-store keys, or provider credentials. Examples should use
 obviously invalid sample values and environment-variable names.
 
-Accounts And Auth
+Accounts and Auth
 -----------------
 
 Account, device-code, OAuth, and API-key routes should distinguish test/local
@@ -39,13 +39,11 @@ Deployment Mutation
 Promotion and deployment should be explicit, audited state transitions. A demo
 script or local feedback run should not silently mutate a production alias.
 
-Release Checklist
------------------
+Audit Trail Expectations
+------------------------
 
-Before release:
-
-* inspect examples and docs for real secrets;
-* record backend configuration for route smoke tests;
-* verify auth and deployment paths have clear local/test modes;
-* preserve observed/candidate/approved/deployed distinctions in drift flows;
-* build docs with warnings as errors.
+State-changing routes should leave enough evidence to answer who requested the
+change, which input or artifact was used, which backend stored the result, and
+how the operation can be reversed or reviewed. Local examples may use in-memory
+state, but public docs should not imply that in-memory behavior proves durable
+deployment safety.

@@ -35,10 +35,12 @@ Route Families
    * - ``/v1/telemetry/*``
      - PII-free platform events and training rows for router/placement
        improvement.
-   * - ``/v1/mcp``
-     - Model-registry-backed MCP tool listing and tool calls.
+   * - ``/mcp``
+     - Model-registry-backed MCP tool listing and tool calls, a single
+       JSON-RPC 2.0 endpoint. Unlike the other route families, this path is
+       not under ``/v1``.
 
-Authentication And Ownership
+Authentication and Ownership
 ----------------------------
 
 Routes that read or mutate user state should depend on ``require_user``. User
@@ -130,7 +132,7 @@ Fine-tune jobs move through explicit states:
 Workers should update the row rather than raising into the route caller. A bad
 training request is operational data, not a gateway crash.
 
-Artifact And Storage Policy
+Artifact and Storage Policy
 ---------------------------
 
 Routes that generate bytes should return a stable artifact reference instead
@@ -149,7 +151,7 @@ Generated artifacts should record:
 * owner/user id;
 * validation or verification status when available.
 
-Promotion And Deployment
+Promotion and Deployment
 ------------------------
 
 Training, dataset generation, and telemetry can produce candidates. They should
@@ -163,18 +165,6 @@ record that links:
 * deployment alias or route.
 
 This keeps ``observed``, ``candidate``, ``approved``, and ``deployed`` as
-separate states in operational docs and API behavior.
-
-Validation Checklist
---------------------
-
-For gateway changes, record:
-
-* focused route tests for success and expected failures;
-* auth/user-scoping behavior;
-* registry state before and after the call;
-* persistence side effects;
-* artifact paths or hashes;
-* docs build with warnings as errors;
-* any external service mocked, skipped, or genuinely exercised.
+separate states in operational docs and API behavior. See :doc:`validation`
+for how to test route behavior.
 

@@ -2,7 +2,7 @@
 and Google Gemini (``generateContent``). ``OpenAICompatAdapter`` already reaches anything that speaks the OpenAI
 chat schema (Ollama, vLLM, OpenAI, most proxies); these two translate mixle's OpenAI-shaped ``ChatRequest`` to and
 from each provider's own wire format -- system-prompt separation, content blocks, and tool-calling included -- so a
-Claude or Gemini model is a first-class ``ModelAdapter`` the cascade/MoA/best-of-N bridge can compose like any other.
+native-provider model is a first-class ``ModelAdapter`` the cascade/MoA/best-of-N bridge can compose like any other.
 
 Both are prompt-level integrations: hosted APIs don't expose logits, so the logit-level bridge (token PoE, grammar
 masking) stays local-only (see ``models/local_engine.py``) -- the deliberate two-tier contract. A small ``transport``
@@ -442,8 +442,9 @@ _PROVIDERS = {"anthropic": AnthropicAdapter, "gemini": GeminiAdapter, "google": 
 def make_adapter(model_id: str, backend: dict[str, Any], *, default_base_url: str = "",
                  default_api_key: str = "") -> ModelAdapter:
     """Build the right ``ModelAdapter`` for a configured backend. ``backend['provider']`` selects a native provider
-    (``anthropic``/``gemini``); anything else (or absent) falls back to ``OpenAICompatAdapter`` -- so Claude, Gemini,
-    OpenAI, Ollama, and vLLM all register into one gateway from the same ``MIXLE_LLM_BACKENDS`` config block."""
+    (``anthropic``/``gemini``); anything else (or absent) falls back to ``OpenAICompatAdapter``. Native hosted
+    models, OpenAI, Ollama, and vLLM all register into one gateway from the same ``MIXLE_LLM_BACKENDS`` config
+    block."""
     from .openai_compat import OpenAICompatAdapter
 
     provider = (backend.get("provider") or "openai").lower()

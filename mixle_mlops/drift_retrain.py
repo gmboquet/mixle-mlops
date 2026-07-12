@@ -5,8 +5,10 @@ if drift is detected retrains a fresh model (with new provenance), registers it,
 ``production``. The serving Deployment then picks the new model up on its next ``POST /reload`` or a rolling
 restart (``kubectl rollout restart deployment/mixle-model``).
 
-``_recent_batch()`` is a stub: wire it to your real production-data store (warehouse, log sink, the
-serving activity log, ...). The estimator here is a Gaussian to match seed_registry.py -- swap in yours.
+``_recent_batch()`` is the integration hook for production records. It can read
+from a warehouse, log sink, serving activity log, or the local JSON path used by
+the example. The estimator here is a Gaussian to match ``seed_registry.py``;
+replace it with the model family used by the deployment.
 """
 
 from __future__ import annotations
@@ -24,12 +26,12 @@ NAME = os.environ.get("MIXLE_MODEL_NAME", "model")
 
 
 def _recent_batch() -> list:
-    """STUB: return the recent production records to test for drift. Replace with a real data pull."""
+    """Return the recent production records used for the drift check."""
     path = os.environ.get("MIXLE_RECENT_BATCH_PATH")
     if path and os.path.exists(path):
         with open(path) as fh:
             return json.load(fh)
-    # demo fallback: a shifted sample so the example actually triggers a retrain
+    # Deterministic demo fallback: shifted data so the example triggers retraining.
     return np.random.RandomState(1).normal(6.0, 2.0, 1000).tolist()
 
 

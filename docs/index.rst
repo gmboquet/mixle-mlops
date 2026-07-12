@@ -7,8 +7,8 @@ OpenAI-compatible model providers behind one application surface, with account
 management, API keys, RAG, multimodal input, MCP tooling, feedback loops,
 dataset export, and deployment helpers.
 
-The package also documents the gateway capability work for substrate
-serving, telemetry, pool jobs, spend rails, creation verbs, lineage, and drift
+This manual also covers the gateway capability surfaces: substrate serving,
+telemetry, pool jobs, spend rails, creation verbs, lineage, and drift
 retraining.
 
 Start Here
@@ -32,7 +32,6 @@ promotion workflows.
    operator-runbook
    gateway-operating-contract
    model-distillation-and-cross-modal-training
-   release-readiness
    release-notes
    changelog
    security-and-data
@@ -48,3 +47,21 @@ promotion workflows.
    :maxdepth: 2
 
    api/modules
+
+Review Standard
+---------------
+
+Treat this manual as both operator documentation and release evidence. A route,
+provider adapter, registry action, dataset export, feedback loop, or training
+path should not be considered public until the docs name its configuration,
+authentication behavior, persistence expectations, validation command, and
+failure mode. Gateway features can affect user data and served model behavior,
+so undocumented defaults are release risks rather than implementation details.
+
+Reader Path
+-----------
+
+Operators should begin with installation, quickstart, and the operator runbook.
+Reviewers should pair the gateway operating contract with validation and API
+reference pages. Contributors changing training or promotion should also read
+the distillation and cross-modal training guide before editing route behavior.
