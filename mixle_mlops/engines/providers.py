@@ -29,9 +29,16 @@ class NgramProvider:
 
 class HFLogitProvider:
     """A real transformers ``AutoModelForCausalLM`` exposing per-step next-token logits — the genuine logit-level
-    backend that makes token-level PoE + grammar masking work with actual models."""
+    backend that makes token-level PoE + grammar masking work with actual models.
 
-    def __init__(self, model=None, tokenizer=None, *, model_name: str | None = None, device: str = "cpu"):
+    ``adapter_path``, when given, loads a PEFT adapter (e.g. the LoRA output of the generated
+    ``llm_lora_train.py`` script, see ``compute/jobspec.py``) over the base model via
+    ``peft.PeftModel.from_pretrained`` -- applies regardless of whether the base model came from
+    ``model_name=`` or was passed in directly as ``model=``, so a fitted in-memory model can be adapter-
+    tested without a real tokenizer/model_name."""
+
+    def __init__(self, model=None, tokenizer=None, *, model_name: str | None = None, device: str = "cpu",
+                 adapter_path: str | None = None):
         import torch
 
         self._torch = torch
@@ -45,6 +52,10 @@ class HFLogitProvider:
         else:
             self.model = model
             self.tokenizer = tokenizer
+        if adapter_path is not None:
+            from peft import PeftModel
+
+            self.model = PeftModel.from_pretrained(self.model, adapter_path)
         self.model.eval()
         self.model.to(device)
         self.device = device

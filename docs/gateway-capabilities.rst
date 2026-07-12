@@ -19,7 +19,10 @@ This guide documents these gateway surfaces:
 * creation verbs for certified model artifacts, uncertainty quantification,
   simulation, verified synthesis, skills, and lineage;
 * Mixle model-serving manifests with certificate and calibration metadata;
-* drift retraining that promotes only after a drift-triggered refit.
+* drift retraining that promotes only after a drift-triggered refit;
+* LoRA/QLoRA fine-tuning (SFT on chat data or raw continuation, plus resuming
+  from a prior adapter) and loading a completed fine-tune into the live model
+  registry.
 
 Route Families
 --------------
@@ -50,6 +53,10 @@ Route Families
    * - Skills and lineage
      - ``/v1/skills`` and ``/v1/lineage/{model_id}``
      - Register model-backed skills and report data-to-model-to-skill lineage.
+   * - Fine-tuning and model loading
+     - ``/v1/fine_tunes`` and ``/v1/models/load``
+     - Plan/train a LoRA or QLoRA fine-tune (SFT or continued-pretraining
+       style), then load the resulting adapter into the live registry.
 
 Substrate Serving
 -----------------
@@ -107,6 +114,46 @@ untouched.
 
 Focused tests for these surfaces are named in :doc:`validation`; run them
 together before changing any route family described above.
+
+Fine-Tuning: LoRA, QLoRA, SFT, and Continuation
+------------------------------------------------
+
+``POST /v1/fine_tunes`` with ``backend: "llm"`` returns an offline training
+*plan* for a LoRA (or, with ``qlora: true``, 4-bit QLoRA) fine-tune of a
+HuggingFace causal LM -- it does not spend money or launch a GPU itself.
+Actually running it (rented vast.ai box or ``--local``) is the operator's
+keyed ``mixle_mlops.compute.launch``/``run_local`` step, same as before.
+
+The generated training script picks its objective from the dataset shape:
+
+* a ``messages`` column (chat turns) applies the base model's chat template
+  and masks the prompt out of the loss, so only the assistant's response
+  contributes -- supervised fine-tuning (SFT), not raw continuation.
+* a ``text`` column (or no ``messages`` column at all) trains on the raw text
+  unmasked, the same behavior this script has always had -- usable as a
+  continued-pretraining-style (CPT) run over unlabeled text.
+* ``resume_from`` (a prior adapter directory) continues training that
+  adapter instead of initializing a fresh one, for incremental/CPT-style runs
+  that pick up where a previous pass left off.
+
+Once an artifact is trained and registered under ``registry_root`` (writing
+the ``metadata.json`` the launcher already produces), ``POST
+/v1/models/load {"name": ...}`` loads it into the *live* gateway registry --
+no restart required. This is admin-gated, like substrate's promotion
+approval: it doesn't train or spend anything, but it does change what every
+caller sees at ``/v1/models``, so it isn't a self-service action. Today it
+only serves the ``llm`` backend (a base model plus an optional LoRA
+adapter, loaded through the same local logit-level engine that hosts any
+other local model); a completed ``structured``/``mixle``-backend artifact is
+registered through its own existing path instead.
+
+There is no per-request, per-user adapter switching (serving many users'
+distinct adapters concurrently off one base model, the way vLLM's or
+S-LoRA's multi-LoRA serving does) -- a "per-user model" today means loading
+that user's adapter as its own named model via ``/v1/models/load`` and
+routing to it by id, which the registry already supports for free. Dynamic
+multi-tenant adapter serving would be a different serving engine, not an
+extension of this one, and isn't built here.
 
 Boundaries
 ----------

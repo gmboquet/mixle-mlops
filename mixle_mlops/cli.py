@@ -43,6 +43,8 @@ def main(argv: list[str] | None = None) -> None:
     tr.add_argument("--base-model", dest="base_model", help="HF model id (llm backend)")
     tr.add_argument("--epochs", type=float, default=1.0)
     tr.add_argument("--qlora", action="store_true", help="4-bit QLoRA (llm backend)")
+    tr.add_argument("--resume-from", dest="resume_from", default=None,
+                    help="a previously-saved adapter dir to continue training (llm backend, CPT-style)")
     tr.add_argument("--gpu", default=None, help="GPU name filter, e.g. RTX_4090")
     tr.add_argument("--num-gpus", dest="num_gpus", type=int, default=1)
     tr.add_argument("--max-price", dest="max_price", type=float, default=None, help="$/hr cap")
@@ -102,6 +104,7 @@ def main(argv: list[str] | None = None) -> None:
             base_model=args.base_model,
             epochs=args.epochs,
             qlora=args.qlora,
+            resume_from=args.resume_from,
             gpu=args.gpu or s.vast_default_gpu,
             num_gpus=args.num_gpus,
             max_price=args.max_price if args.max_price is not None else s.vast_max_price,

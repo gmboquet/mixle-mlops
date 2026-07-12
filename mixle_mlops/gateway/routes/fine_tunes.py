@@ -62,6 +62,7 @@ class FineTuneBody(BaseModel):
     gpu: str = "RTX_4090"
     epochs: float = 1.0
     qlora: bool = False
+    resume_from: str | None = None                       # continue training a previously-saved adapter (CPT-style)
 
 
 @router.post("")
@@ -106,7 +107,7 @@ def create_fine_tune(
             plan = service.plan_gpu_job(
                 name=job.model, backend=body.backend, base_model=body.base_model,
                 dataset=body.dataset, script=body.script, repo=body.repo, workdir=body.workdir,
-                gpu=body.gpu, epochs=body.epochs, qlora=body.qlora,
+                gpu=body.gpu, epochs=body.epochs, qlora=body.qlora, resume_from=body.resume_from,
             )
         except Exception as e:  # invalid job spec -> record + 400
             _fail(session, job, f"{type(e).__name__}: {e}")

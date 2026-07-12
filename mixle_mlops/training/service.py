@@ -195,6 +195,7 @@ def plan_gpu_job(
     gpu: str = "RTX_4090",
     epochs: float = 1.0,
     qlora: bool = False,
+    resume_from: str | None = None,
 ) -> dict[str, Any]:
     """Produce the offline vast.ai plan for a GPU fine-tune (no spend). Launching is the operator's keyed step
     (``mixle_mlops.compute.launch`` with ``MIXLE_VAST_API_KEY``), surfaced here so the REST client sees exactly
@@ -205,7 +206,7 @@ def plan_gpu_job(
     job = TrainingJob(
         name=name, backend=backend, mode=("onstart" if repo else "ssh"),
         base_model=base_model, dataset=dataset, script=script, repo=repo, workdir=workdir,
-        gpu=gpu, epochs=epochs, qlora=qlora,
+        gpu=gpu, epochs=epochs, qlora=qlora, resume_from=resume_from,
     )
     return plan(job)
 

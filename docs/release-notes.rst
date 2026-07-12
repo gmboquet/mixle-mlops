@@ -24,6 +24,13 @@ backend outside the ``cloud`` extra, and a cloud deployment that could boot
 silently on the default secret key. See the root ``CHANGELOG.md`` for the full
 list.
 
+0.7.0 also adds LoRA/QLoRA fine-tuning depth: SFT (chat-template + prompt
+masking) alongside the existing raw-continuation training, `resume_from`
+checkpoint continuation, and -- the piece that was previously missing --
+adapter-aware serving (`HFLogitProvider`'s `adapter_path`) plus `POST
+/v1/models/load` to bring a completed fine-tune live without a restart. See
+:doc:`gateway-capabilities`'s LoRA/QLoRA section.
+
 0.6.3
 -----
 

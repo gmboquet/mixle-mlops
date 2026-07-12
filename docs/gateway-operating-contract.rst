@@ -27,7 +27,11 @@ Route Families
      - Dataset generation, code-task data, metadata persistence, and blob-store
        export.
    * - ``/v1/fine_tunes/*``
-     - Structured local fine-tune jobs and offline GPU plan generation.
+     - Structured local fine-tune jobs and offline GPU plan generation
+       (including LoRA/QLoRA SFT and continuation runs).
+   * - ``/v1/models/load``
+     - Load a completed fine-tune artifact into the live model registry.
+       Admin-only -- it changes what every caller sees at ``/v1/models``.
    * - ``/v1/rag/*`` and ``/v1/documents``
      - Document upload, parsing, indexing, and retrieval.
    * - ``/v1/pool/*``
@@ -177,4 +181,9 @@ record that links:
 This keeps ``observed``, ``candidate``, ``approved``, and ``deployed`` as
 separate states in operational docs and API behavior. See :doc:`validation`
 for how to test route behavior.
+
+``POST /v1/models/load`` is this pattern's ``deployed`` step for an ``llm``
+fine-tune: the candidate (a trained LoRA/QLoRA adapter, already recorded
+under ``registry_root``) becomes servable only when an admin explicitly
+loads it, not the moment training finishes.
 

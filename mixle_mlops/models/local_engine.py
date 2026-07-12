@@ -166,11 +166,22 @@ class SpeculativeAdapter(ModelAdapter):
             delta=ChoiceDelta(role="assistant", content=text), finish_reason="stop")])
 
 
-def load_local_engine(name: str, model_names: list[str], *, max_new_tokens: int = 128) -> LocalEngineAdapter:
-    """Load one or more transformers models and wrap them as a local-engine adapter (PoE ensemble if >1)."""
+def load_local_engine(name: str, model_names: list[str], *, max_new_tokens: int = 128,
+                       adapter_path: str | None = None) -> LocalEngineAdapter:
+    """Load one or more transformers models and wrap them as a local-engine adapter (PoE ensemble if >1).
+
+    ``adapter_path`` loads a PEFT (LoRA/QLoRA) adapter over the base model -- e.g. the output of a
+    fine-tune job trained by the generated ``llm_lora_train.py`` script (``compute/jobspec.py``) and
+    registered under ``registry_root`` (see ``gateway/routes/models.py``'s ``POST /v1/models/load``).
+    Only meaningful for a single base model: a PoE ensemble with per-model adapters isn't supported."""
     from ..engines import HFLogitProvider
 
-    providers = [HFLogitProvider(model_name=m) for m in model_names]
+    if adapter_path is not None and len(model_names) != 1:
+        raise ValueError("adapter_path requires exactly one base model, not a PoE ensemble")
+    providers = [
+        HFLogitProvider(model_name=m, adapter_path=adapter_path if i == 0 else None)
+        for i, m in enumerate(model_names)
+    ]
     return LocalEngineAdapter(name, providers, max_new_tokens=max_new_tokens)
 
 

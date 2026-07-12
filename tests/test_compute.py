@@ -55,6 +55,34 @@ def test_training_command_mixle_and_llm():
     assert "llm_lora_train.py" in llm and "--base_model" in llm and "--qlora" in llm
 
 
+def test_training_command_resume_from():
+    without = training_command(TrainingJob(name="l", backend="llm", base_model="Qwen/Qwen2.5-0.5B"))
+    assert "--resume_from" not in without  # unset by default -> no flag, fresh LoRA init
+    with_resume = training_command(
+        TrainingJob(name="l", backend="llm", base_model="Qwen/Qwen2.5-0.5B", resume_from="/artifacts/prior-adapter")
+    )
+    assert "--resume_from" in with_resume and "/artifacts/prior-adapter" in with_resume
+
+
+def test_llm_lora_script_supports_sft_and_resume_from():
+    from mixle_mlops.compute.jobspec import LLM_LORA_SCRIPT
+
+    # SFT path: chat-template + completion-only masking on a "messages" dataset
+    assert '"messages" in ds.column_names' in LLM_LORA_SCRIPT
+    assert "apply_chat_template" in LLM_LORA_SCRIPT
+    assert "-100" in LLM_LORA_SCRIPT  # the ignored-loss label id
+    assert "DataCollatorForSeq2Seq" in LLM_LORA_SCRIPT  # pads labels with -100, not the pad token
+    # CPT path: unchanged flat-text behavior stays the fallback when there's no "messages" column
+    assert 'text_col = "text" if "text" in ds.column_names else ds.column_names[0]' in LLM_LORA_SCRIPT
+    assert "DataCollatorForLanguageModeling" in LLM_LORA_SCRIPT
+    # resume_from: continue an existing adapter instead of a fresh LoraConfig
+    assert "--resume_from" in LLM_LORA_SCRIPT
+    assert "PeftModel.from_pretrained(model, a.resume_from, is_trainable=True)" in LLM_LORA_SCRIPT
+
+    # every generated script must still be syntactically valid Python
+    compile(LLM_LORA_SCRIPT, "<llm_lora_train.py>", "exec")
+
+
 def test_pip_packages():
     mixle_pkgs = pip_packages(TrainingJob(name="m", backend="mixle", script="t.py", workdir="."))
     assert any("mixle" in p for p in mixle_pkgs)  # installed from git by default

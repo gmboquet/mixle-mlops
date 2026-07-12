@@ -55,6 +55,14 @@ release-readiness pass (see `release-checklists/0.7.0.md`).
 - Multi-cloud deploy: Docker/Helm/Terraform for AWS/Azure/GCP/Alicloud, a unified `fsspec`-backed
   object store, and generic GPU-compute launch (rented boxes via vast.ai, or any OpenAI-compatible
   endpoint).
+- LoRA/QLoRA fine-tuning depth: the generated training script now supports supervised fine-tuning
+  (a `messages`-column dataset applies the base model's chat template and masks the prompt out of
+  the loss) alongside its original raw-continuation training, plus `resume_from` to continue an
+  existing adapter instead of always initializing a fresh one. `HFLogitProvider`/`load_local_engine`
+  gain `adapter_path` to actually serve a trained LoRA adapter over its base model (previously,
+  nothing in the serving path could load one). `POST /v1/models/load` (admin-only) loads a completed
+  fine-tune artifact into the live registry without a gateway restart — the missing link between
+  "trained a LoRA adapter" and "it's actually callable at `/v1/chat/completions`".
 - A Next.js frontend (`frontend/`): a chat UI, and a runtime/knowledge-transport console landing
   page that live-checks `/health` and `/v1/models`, browses the live model registry, and diagrams
   the gateway's capability graph — labeling each node and edge as runtime-verified, source-known, or

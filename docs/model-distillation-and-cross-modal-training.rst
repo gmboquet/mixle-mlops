@@ -35,7 +35,9 @@ A distillation run should move through explicit stages:
     rollback plan, and deployment target.
 
 No route should silently switch to a distilled model just because a training
-job completed. Promotion is an explicit registry decision.
+job completed. Promotion is an explicit registry decision -- for an ``llm``
+fine-tune (see :doc:`gateway-capabilities`'s LoRA/QLoRA section), that
+decision is ``POST /v1/models/load``, not the training job's own completion.
 
 Multiple-Task Distillation
 --------------------------

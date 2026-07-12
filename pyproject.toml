@@ -51,10 +51,13 @@ scale = ["redis>=5"]                                # shared cache + cross-repli
 export = ["reportlab>=4"]                           # PDF conversation export (json/markdown are stdlib)
 datasets = ["pandas>=2", "pyarrow>=15"]             # parquet dataset export
 structured = ["jsonschema>=4"]                      # constrained/structured-output validation (graceful fallback if absent)
-local = ["torch>=2", "transformers>=4"]             # local logit-level engine: token-level PoE + grammar masking
+local = ["torch>=2", "transformers>=4", "peft>=0.12"]  # local logit-level engine: token-level PoE + grammar masking
                                                       # (TreeLogitProvider's KV-cache trie now rebuilds Cache
                                                       # objects for transformers>=5 too -- see providers.py's
                                                       # _fresh_past/_to_stored; verified against 4.57.6 and 5.13.1)
+                                                      # peft loads a LoRA adapter over a served base model
+                                                      # (HFLogitProvider's adapter_path) -- same peft floor
+                                                      # already used by the generated GPU fine-tune script.
 cloud = ["psycopg[binary]>=3.1", "boto3>=1.34",     # managed Postgres + AWS
          "s3fs", "gcsfs", "adlfs", "ossfs"]         # per-cloud object store drivers (fsspec itself is a base dep)
 mcp = ["mcp>=1.0"]                                   # MCP server/client (official SDK; minimal fallback otherwise)
