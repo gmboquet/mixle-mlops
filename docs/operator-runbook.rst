@@ -15,7 +15,7 @@ review:
 
 .. code-block:: console
 
-   python -m pip install -e ".[docs]"
+   python -m pip install -e ".[dev]"
    python -m pip install -e ".[datasets,structured,export]"
 
 Use the project README for the current application command. Record any

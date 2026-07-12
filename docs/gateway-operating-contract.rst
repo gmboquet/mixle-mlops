@@ -32,6 +32,14 @@ Route Families
      - Document upload, parsing, indexing, and retrieval.
    * - ``/v1/pool/*``
      - Pool job submission, spend state, and artifact retrieval.
+   * - ``/v1/substrate/{name}/*``
+     - Knowledge substrate retrieval, budgeted context assembly, factuality
+       receipts, and publish/propose/approve/reject promotion review.
+   * - ``/v1/create``, ``/v1/uq``, ``/v1/simulate``, ``/v1/synthesize``,
+       ``/v1/skills``, ``/v1/lineage/{model_id}``
+     - Creation-verb twins of core Mixle operations (certified fit, honest
+       uncertainty, constrained synthesis), skill registration, and
+       data-to-model-to-skill lineage queries.
    * - ``/v1/telemetry/*``
      - PII-free platform events and training rows for router/placement
        improvement.
@@ -51,6 +59,8 @@ scoped data must stay scoped by user id:
 * generated datasets;
 * fine-tune jobs;
 * pool jobs and spend records;
+* substrate shards, published items, and pending promotions;
+* created artifacts, registered skills, and lineage records;
 * telemetry rows;
 * feedback records.
 

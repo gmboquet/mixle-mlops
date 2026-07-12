@@ -72,6 +72,7 @@ intersphinx_mapping = {
 }
 
 html_theme = "furo"
-html_title = "mixle-mlops"
-html_static_path = []
+html_title = f"mixle-mlops {release}"
+html_favicon = "_static/mixle_icon.png"
+html_static_path = ["_static"]
 todo_include_todos = False

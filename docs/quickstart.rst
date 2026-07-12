@@ -12,7 +12,7 @@ From the repository root:
 
 .. code-block:: console
 
-   python -m pip install -e ".[docs]"
+   python -m pip install -e ".[dev]"
 
 Use additional extras only for the surface under review, such as datasets,
 structured outputs, object storage, or optional cloud backends.

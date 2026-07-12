@@ -16,7 +16,7 @@ Install optional surfaces as needed:
 
 .. code-block:: console
 
-   python -m pip install -e ".[documents,scale,export,datasets,structured,local,cloud,mcp]"
+   python -m pip install -e ".[documents,scale,export,datasets,structured,local,cloud,mcp,image]"
    python -m pip install -e ".[docs]"
 
 Run the gateway locally:

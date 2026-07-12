@@ -1,6 +1,6 @@
 """Minimal Vast.ai REST client.
 
-Wraps the documented API (https://console.vast.ai/api/v0, Bearer auth): search offers, create an
+Wraps the documented API (``https://console.vast.ai/api/v0``, Bearer auth): search offers, create an
 instance from an offer, read instance status (ssh host/port), and destroy it. Just the calls the
 training launcher needs — no SDK dependency.
 """
