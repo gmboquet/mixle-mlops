@@ -133,7 +133,8 @@ VM, marketplace instance, managed Kubernetes cluster, or on-prem host. See `depl
 
 The split mirrors mixle's: **mixle** owns the domain-neutral math (distributions, scoring, calibration, decision,
 `mixle.evolve`); **mixle-mlops** owns serving/orchestration (gateway, accounts, RAG, the bridge components, the
-evolution worker). The mixle math always upstreams to the core. See `ARCHITECTURE.md`.
+evolution worker). The mixle math always upstreams to the core. See [`docs/overview.rst`](docs/overview.rst)
+and [`docs/package-map.rst`](docs/package-map.rst) for the package boundaries.
 
 > Requires `mixle.evolve` (published on PyPI since mixle 0.6.1; this package pins `mixle>=0.6.1`) for
 > the self-evolution routes.

@@ -106,5 +106,8 @@ release-readiness pass (see `release-checklists/0.7.0.md`).
 - Removed `mixle_mlops/app.py` (a vestigial single-model server pre-dating the platform gateway,
   unreferenced anywhere else in the repo) and its paired root `Dockerfile`, whose env vars only
   applied to that dead module while its `CMD` actually launched the real gateway.
+- Removed `ARCHITECTURE.md`: internal planning content, not meant to be public, that also predated
+  most of the package's actual feature set. `README.md` and `mixle_mlops/__init__.py`'s references to
+  it now point at `docs/overview.rst`/`docs/package-map.rst` instead.
 - The README's self-evolution note claimed `mixle.evolve` was only available on an unmerged branch;
   it has shipped on PyPI since `mixle` 0.6.1.
