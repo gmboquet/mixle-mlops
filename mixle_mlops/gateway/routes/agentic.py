@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ...accounts.models import User
 from ...config import get_settings
 from ..auth import require_user
+from ._paths import safe_join
 
 router = APIRouter()
 
@@ -44,7 +45,7 @@ def _never_teacher(*_a: Any, **_k: Any) -> Any:  # loaded artifacts serve local-
 
 
 def _load(kind: str, name: str) -> Any:
-    path = _root(kind) / name
+    path = safe_join(_root(kind), name)
     manifest = path / _MANIFEST[kind]
     if not manifest.exists():
         raise HTTPException(status_code=404, detail=f"no deployed {kind[:-1]} named {name!r}")
@@ -76,7 +77,7 @@ def _list(kind: str) -> dict[str, Any]:
 def _feedback(kind: str, name: str, body: dict[str, Any], answer_key: str) -> dict[str, Any]:
     if "input" not in body or answer_key not in body:
         raise HTTPException(status_code=422, detail=f'body must be {{"input": ..., "{answer_key}": ...}}')
-    path = _root(kind) / name
+    path = safe_join(_root(kind), name)
     if not (path / _MANIFEST[kind]).exists():
         raise HTTPException(status_code=404, detail=f"no deployed {kind[:-1]} named {name!r}")
     harvested = path / "harvested.jsonl"
@@ -89,7 +90,7 @@ def _feedback(kind: str, name: str, body: dict[str, Any], answer_key: str) -> di
 
 
 def _verification(kind: str, name: str) -> dict[str, Any]:
-    path = _root(kind) / name / _MANIFEST[kind]
+    path = safe_join(_root(kind), name) / _MANIFEST[kind]
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"no deployed {kind[:-1]} named {name!r}")
     m = json.loads(path.read_text())

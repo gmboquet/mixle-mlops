@@ -145,6 +145,16 @@ def test_planner_serves_plans(client):
     assert client.post("/v1/planners/nope/plan", json={"input": "x"}, headers=h).status_code == 404
 
 
+def test_path_traversal_name_is_rejected(client):
+    # `name` is a URL path segment, so forward-slash traversal gets resolved/blocked by client or
+    # routing before it reaches the handler -- backslash survives routing intact and is what actually
+    # exercises _load()'s own validation, ahead of even the "does this exist" check.
+    h = _headers(client)
+    r = client.post(r"/v1/toolcallers/..\..\etc/call", json={"input": "x"}, headers=h)
+    assert r.status_code == 422
+    assert "invalid name" in r.json()["detail"]
+
+
 def test_generative_planner_serves(client):
     from mixle.task import ToolSpec, sft_planner
 

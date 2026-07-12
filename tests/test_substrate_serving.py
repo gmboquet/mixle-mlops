@@ -201,6 +201,15 @@ class TestSubstrateServing:
         )
         assert p.status_code == 200 and p.json()["n"] == 0
 
+    def test_path_traversal_shard_name_is_rejected(self, client):
+        # `name` is a URL path segment, so a forward-slash payload gets resolved/blocked by client or
+        # routing before it ever reaches the handler -- backslash isn't a path separator, so it survives
+        # routing intact and is what actually exercises _shard()'s own validation.
+        h = _headers(client)
+        r = client.get(r"/v1/substrate/..\..\etc", headers=h)
+        assert r.status_code == 422
+        assert "invalid name" in r.json()["detail"]
+
 
 def _admin_headers(client, email="admin@t.com"):
     from sqlmodel import Session

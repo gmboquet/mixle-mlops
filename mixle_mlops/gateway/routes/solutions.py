@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ...accounts.models import User
 from ...config import get_settings
 from ..auth import require_user
+from ._paths import safe_join
 from .tasks import _coerce_input
 
 router = APIRouter()
@@ -59,7 +60,7 @@ def _sniff(path: Path) -> tuple[str, Path]:
 
 
 def _load(name: str) -> tuple[str, Any]:
-    path = _root() / name
+    path = safe_join(_root(), name)
     if not path.is_dir():
         raise HTTPException(status_code=404, detail=f"no deployed solution named {name!r}")
     kind, stamp_file = _sniff(path)
@@ -158,7 +159,7 @@ def _verification_of(path: Path) -> dict[str, Any]:
 
 @router.get("/solutions/{name}/verification")
 def verification(name: str, user: User = Depends(require_user)) -> dict[str, Any]:
-    path = _root() / name
+    path = safe_join(_root(), name)
     if not path.is_dir():
         raise HTTPException(status_code=404, detail=f"no deployed solution named {name!r}")
     return _verification_of(path)
@@ -168,7 +169,7 @@ def verification(name: str, user: User = Depends(require_user)) -> dict[str, Any
 def feedback(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
     if "input" not in body or "answer" not in body:
         raise HTTPException(status_code=422, detail='body must be {"input": ..., "answer": ...}')
-    path = _root() / name
+    path = safe_join(_root(), name)
     if not path.is_dir():
         raise HTTPException(status_code=404, detail=f"no deployed solution named {name!r}")
     harvested = path / "harvested.jsonl"

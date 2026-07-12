@@ -35,6 +35,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ...accounts.models import User
 from ...config import get_settings
 from ..auth import require_user
+from ._paths import safe_join
 
 router = APIRouter()
 
@@ -50,7 +51,7 @@ def _shard(name: str, *, create: bool = False) -> Any:
     """Load (and cache, keyed on the items file mtime) the named substrate shard."""
     from mixle.substrate import Substrate
 
-    path = _root() / name
+    path = safe_join(_root(), name)
     items = path / "items.jsonl"
     if not items.exists() and not create:
         raise HTTPException(status_code=404, detail=f"no substrate shard named {name!r}")
@@ -66,7 +67,7 @@ def _shard(name: str, *, create: bool = False) -> Any:
 
 
 def _persist(name: str, sub: Any) -> None:
-    sub.save(str(_root() / name))
+    sub.save(str(safe_join(_root(), name)))
     with _LOCK:
         _CACHE.pop(name, None)  # invalidate: next read reloads from the new mtime
 

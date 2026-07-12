@@ -67,6 +67,16 @@ def test_non_admin_is_forbidden(client):
     assert r.status_code == 403
 
 
+@pytest.mark.parametrize("bad_name", ["../../../etc/passwd", "/etc/passwd", ".."])
+def test_path_traversal_name_is_rejected(client, bad_name):
+    # name comes from the JSON body, not the URL, so it reaches the handler unmodified -- no client- or
+    # routing-level normalization to rely on. Must be rejected before registry_root is ever touched.
+    h = _user_headers(client, "admin-traversal@t.com", is_admin=True)
+    r = client.post("/v1/models/load", json={"name": bad_name}, headers=h)
+    assert r.status_code == 422
+    assert "invalid name" in r.json()["detail"]
+
+
 def test_unknown_name_is_404(client):
     h = _user_headers(client, "admin1@t.com", is_admin=True)
     r = client.post("/v1/models/load", json={"name": "does-not-exist"}, headers=h)

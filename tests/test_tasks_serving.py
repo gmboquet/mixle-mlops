@@ -102,6 +102,16 @@ def test_unknown_task_is_404(client):
     assert client.post("/v1/tasks/nope/decide", json={"input": "x"}, headers=h).status_code == 404
 
 
+def test_path_traversal_task_name_is_rejected(client):
+    # `name` is a URL path segment, so forward-slash traversal gets resolved/blocked by client or
+    # routing before it reaches the handler -- backslash survives routing intact and is what actually
+    # exercises _load()'s own validation, ahead of even the "does this task exist" check.
+    h = _headers(client)
+    r = client.post(r"/v1/tasks/..\..\etc/decide", json={"input": "x"}, headers=h)
+    assert r.status_code == 422
+    assert "invalid name" in r.json()["detail"]
+
+
 def test_route_stack_serves_with_receipts(client):
     """PUT a route over two deployed tasks, decide through it, and read the realized-cost report."""
     h = _headers(client)

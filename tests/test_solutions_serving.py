@@ -169,3 +169,12 @@ class TestSolutionsServing:
         h = _headers(client)
         assert client.post("/v1/solutions/nope/decide", json={"input": "x"}, headers=h).status_code == 404
         assert client.get("/v1/solutions", headers=h).json()["solutions"] == {}
+
+    def test_path_traversal_solution_name_is_rejected(self, client):
+        # `name` is a URL path segment, so forward-slash traversal gets resolved/blocked by client or
+        # routing before it reaches the handler -- backslash survives routing intact and is what
+        # actually exercises _load()'s own validation, ahead of even the "does this exist" check.
+        h = _headers(client)
+        r = client.post(r"/v1/solutions/..\..\etc/decide", json={"input": "x"}, headers=h)
+        assert r.status_code == 422
+        assert "invalid name" in r.json()["detail"]

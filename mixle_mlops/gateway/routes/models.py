@@ -3,6 +3,7 @@ capabilities, so a client can discover which support the mixle distribution/deci
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from ...accounts.models import User
 from ...config import get_settings
 from ..auth import current_user, require_user
+from ._paths import safe_join
 
 router = APIRouter()
 
@@ -48,7 +50,7 @@ async def load_model(
     if not bool(getattr(user, "is_admin", False)):
         raise HTTPException(status_code=403, detail="only an admin may load a model into the live registry")
 
-    root = get_settings().registry_root / body.name
+    root = safe_join(Path(get_settings().registry_root), body.name)
     meta_path = root / "metadata.json"
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail=f"no registered artifact named {body.name!r} under {root.parent}")

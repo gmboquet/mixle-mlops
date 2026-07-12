@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ...accounts.models import User
 from ...config import get_settings
 from ..auth import require_user
+from ._paths import safe_join
 
 router = APIRouter()
 
@@ -49,7 +50,7 @@ def _manifest_mtime(path: Path) -> float:
 
 def _load(name: str) -> Any:
     """Load (and cache, keyed on manifest mtime) the calibrated task model for ``name``."""
-    path = _tasks_root() / name
+    path = safe_join(_tasks_root(), name)
     if not path.is_dir():
         raise HTTPException(status_code=404, detail=f"no deployed task named {name!r}")
     try:
@@ -99,7 +100,7 @@ def decide(name: str, body: dict[str, Any], user: User = Depends(require_user)) 
 def feedback(name: str, body: dict[str, Any], user: User = Depends(require_user)) -> dict[str, Any]:
     if "input" not in body or "label" not in body:
         raise HTTPException(status_code=422, detail='body must be {"input": ..., "label": ...}')
-    path = _tasks_root() / name
+    path = safe_join(_tasks_root(), name)
     if not path.is_dir():
         raise HTTPException(status_code=404, detail=f"no deployed task named {name!r}")
     line = json.dumps({"input": body["input"], "label": body["label"]})

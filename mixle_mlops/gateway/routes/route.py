@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ...accounts.models import User
 from ...config import get_settings
 from ..auth import require_user
+from ._paths import validate_path_segment
 from .tasks import _coerce_input, _load
 
 router = APIRouter()
@@ -37,6 +38,7 @@ def _routes_root() -> Path:
 
 
 def _spec_path(name: str) -> Path:
+    validate_path_segment(name)
     return _routes_root() / f"{name}.json"
 
 
