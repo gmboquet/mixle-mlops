@@ -132,9 +132,9 @@ stateless and you can raise `replicas` / attach an HPA and drop the PVC mount.
 
 ## Notes
 
-- The image installs the mixle core from git (`MIXLE_GIT` build-arg, default
-  `git+https://github.com/gmboquet/mixle@main`). Override to pin a sha, or pass
-  `--build-arg MIXLE_GIT="mixle>=0.2"` to take it from your package index.
+- The image installs the mixle core from PyPI by default (the pinned `mixle>=0.6.1` dependency in
+  `pyproject.toml`). Pass `--build-arg MIXLE_GIT="git+https://github.com/gmboquet/mixle@<ref>"` only to
+  test against an unreleased mixle branch or commit.
 - `MIXLE_LLM_MODELS` is a JSON list (e.g. `["llama3.2","qwen2.5"]`); the ids must be pulled in
   Ollama (or available on whatever OpenAI-compatible backend `MIXLE_LLM_BASE_URL` points at).
 - Ollama is just the default OpenAI-compatible backend. Point `MIXLE_LLM_BASE_URL` at a vLLM,

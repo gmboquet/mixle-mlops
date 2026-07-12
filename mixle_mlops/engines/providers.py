@@ -140,19 +140,41 @@ class TreeLogitProvider:
         self._nodes: OrderedDict[tuple, tuple] = OrderedDict()  # prefix -> (stored_kv, last_logits)
 
     # --- KV (de)hydration across transformers versions ---
+    #
+    # `stored` must be an immutable snapshot: a plain tuple of `(key_tensor, value_tensor)` per layer. Several
+    # tree children can share one ancestor node, so `_fresh_past` has to hand each of them a Cache object that
+    # is NOT the live object any sibling's forward call might still be growing -- transformers' `Cache.update`
+    # extends a layer's cache by rebinding `layer.keys`/`layer.values` to a new concatenated tensor (see
+    # `DynamicLayer.update`), so passing the SAME Cache object into two sibling forward calls silently makes
+    # the second one see the first's tokens too (`get_seq_length()` grows out from under it), producing
+    # wrong -- too high -- `position_ids` for the second sibling. transformers<5 avoided this because
+    # `DynamicCache.from_legacy_cache(stored)` always built a brand-new Cache from the immutable tuple; that
+    # classmethod (and its inverse `to_legacy_cache`) were removed in transformers 5, and the old broad
+    # `except Exception` here silently swallowed the resulting AttributeError and fell back to returning the
+    # live Cache object unchanged, reintroducing exactly the shared-mutable-state bug this method exists to
+    # avoid. Rebuild manually from `Cache.layers[i].keys/.values` (5.x's stable public shape) when the legacy
+    # helpers aren't available.
     def _fresh_past(self, stored):
-        """A fresh Cache object over the stored (immutable) legacy tuples -- safe to reuse across branches."""
-        try:
-            from transformers.cache_utils import DynamicCache
+        """A fresh Cache object over the stored (immutable) per-layer tensors -- safe to reuse across branches."""
+        from transformers.cache_utils import DynamicCache
 
-            return DynamicCache.from_legacy_cache(stored)
-        except Exception:  # older transformers take legacy tuples directly
-            return stored
+        from_legacy = getattr(DynamicCache, "from_legacy_cache", None)
+        if callable(from_legacy):
+            return from_legacy(stored)  # transformers < 5
+        cache = DynamicCache()  # transformers >= 5: rebuild layer-by-layer from the stored tensors
+        for layer_idx, (keys, values) in enumerate(stored):
+            cache.update(keys, values, layer_idx)
+        return cache
 
     @staticmethod
     def _to_stored(past):
         to_legacy = getattr(past, "to_legacy_cache", None)
-        return to_legacy() if callable(to_legacy) else past
+        if callable(to_legacy):
+            return to_legacy()  # transformers < 5
+        layers = getattr(past, "layers", None)  # transformers >= 5: Cache.layers (list of CacheLayerMixin)
+        if layers is not None:
+            return tuple((layer.keys, layer.values) for layer in layers)
+        return past  # already a plain tuple, or an unrecognized Cache shape -- pass through
 
     def _root_ids(self) -> list[int]:
         return [self.bos if self.bos is not None else 0]

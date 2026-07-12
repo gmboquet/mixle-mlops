@@ -11,9 +11,10 @@ from dataclasses import dataclass, field
 
 DEFAULT_IMAGE = "pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime"
 
-# The mixle core is installed on the box from git by default (the box can `git clone` the public
-# repo) so it gets the current code, not a pinned PyPI release. Override per-job via --mixle-git.
-DEFAULT_MIXLE_SPEC = "git+https://github.com/gmboquet/mixle.git@evolve"
+# The mixle core is installed on the box from the pinned PyPI release by default (matches this
+# package's own `mixle>=0.6.1` dependency). Override per-job via --mixle-git to test an unreleased
+# mixle branch/commit, e.g. "git+https://github.com/gmboquet/mixle.git@<branch-or-sha>".
+DEFAULT_MIXLE_SPEC = "mixle>=0.6.1"
 LLM_PACKAGES = ["transformers>=4.44", "peft>=0.12", "datasets>=2.20", "accelerate>=0.33", "bitsandbytes>=0.43", "sentencepiece"]
 
 

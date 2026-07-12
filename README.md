@@ -1,13 +1,19 @@
 # mixle-mlops
 
-An **all-in-one AI platform**: host [mixle](https://github.com/gmboquet/mixle) probabilistic models *and* open
-LLMs (Llama, DeepSeek, Qwen, …) behind one **OpenAI-compatible** gateway — with accounts, API keys, a chat UI,
-multimodal, RAG, an MCP server, tool calling + a server-side agentic loop, and the things that make mixle more
-than an LLM proxy: a **probabilistic-bridge stack** that lifts a laptop-sized model toward frontier quality, and
-**self-evolution** that improves served models from their own usage.
+![license](https://img.shields.io/badge/license-MIT-green)
+![python](https://img.shields.io/badge/python-3.10%2B-blue)
+
+An OpenAI-compatible gateway that serves [mixle](https://github.com/gmboquet/mixle) probabilistic models
+alongside open and hosted LLMs (Llama, DeepSeek, Qwen, …) behind one API — accounts, API keys, a chat UI,
+multimodal, RAG, an MCP server, and tool calling with a server-side agentic loop. Two things beyond that make
+it more than an LLM proxy: a **probabilistic-bridge stack** that lifts a laptop-sized model toward frontier
+quality on verifiable/structured tasks, and **self-evolution** that improves served models from their own
+usage.
 
 It runs end-to-end on a laptop (SQLite + filesystem + a local Ollama) and scales to the cloud (Postgres + object
 store + Redis) by changing config — no code change. Local-first, cloud-optional.
+
+## Quickstart
 
 ```sh
 cp deploy/.env.example deploy/.env          # set MIXLE_SECRET_KEY
@@ -80,7 +86,8 @@ verifiably and non-regressively beats the champion** (built on `mixle.evolve`):
 ## Develop
 
 ```sh
-pip install -e ".[dev]"                      # + extras: documents, scale, datasets, export, cloud, mcp, all
+pip install -e ".[dev]"                      # + extras: documents, scale, export, datasets, structured, local,
+                                              #           cloud, mcp, image, all
 pytest -q                                    # the full suite
 ruff check mixle_mlops tests
 mixle-mlops create-user you@example.com pw --admin   # a user + an API key
@@ -112,4 +119,16 @@ The split mirrors mixle's: **mixle** owns the domain-neutral math (distributions
 `mixle.evolve`); **mixle-mlops** owns serving/orchestration (gateway, accounts, RAG, the bridge components, the
 evolution worker). The mixle math always upstreams to the core. See `ARCHITECTURE.md`.
 
-> Requires `mixle.evolve` (currently on the mixle `evolve` branch) for the self-evolution routes.
+> Requires `mixle.evolve` (published on PyPI since mixle 0.6.1; this package pins `mixle>=0.6.1`) for
+> the self-evolution routes.
+
+## Maintainers & contributors
+
+Maintained by **Grant Boquet** ([@gmboquet](https://github.com/gmboquet) ·
+grant.boquet@gmail.com).
+
+Contributions, issues, and discussion are welcome — open a PR or an issue.
+
+## License
+
+MIT — see [LICENSE](https://github.com/gmboquet/mixle-mlops/blob/main/LICENSE).

@@ -8,4 +8,4 @@ a chat UI + landing page, and a principled (mixle-powered) RLHF feedback loop. S
     app = create_app()              # a FastAPI app; run with `mixle-serve`
 """
 
-__version__ = "0.1.0"
+__version__ = "0.7.0"

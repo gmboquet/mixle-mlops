@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mixle-mlops"
-version = "0.6.3"
+version = "0.7.0"
 description = "All-in-one AI platform: host mixle models + open LLMs behind one OpenAI-compatible gateway, with accounts, API keys, multimodal, MCP, a chat UI, and a principled (mixle-powered) RLHF feedback loop."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,7 +12,11 @@ license = "MIT"
 authors = [{ name = "Grant Boquet" }]
 dependencies = [
     # mixle core (the model primitives + the probabilistic differentiator). Published on PyPI as `mixle`.
-    "mixle>=0.2",
+    # Floor is 0.6.1: mixle.evolve, mixle.task(.calibrate/.density/.distill/.model), mixle.ops.product_of_experts,
+    # and mixle.enumeration.AutoregressiveEnumerable (all imported by this package) do not exist before 0.6.1 --
+    # mixle==0.6.0 raises ModuleNotFoundError on several of them. Verified by importing every top-level
+    # `mixle.*` symbol this package uses against each published mixle release (0.6.0/0.6.1/0.6.2/0.7.0).
+    "mixle>=0.6.1",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "pydantic>=2",
@@ -21,6 +25,13 @@ dependencies = [
     "sqlmodel>=0.0.16",     # accounts / keys / registry / conversations / feedback storage
     "python-multipart>=0.0.9",  # multimodal file uploads
     "pyjwt[crypto]>=2.8",   # OIDC id_token verification + Apple client-secret signing (Sign in with Google/Apple)
+    "fsspec>=2023.1",       # storage/objectstore.py's local (file://) filesystem backend -- needed even
+                             # without the `cloud` extra; only the per-cloud drivers (s3fs/gcsfs/adlfs/ossfs)
+                             # are cloud-only and stay in the `cloud` extra below.
+    "numpy",                 # imported directly (unconditionally) in 20+ modules, e.g. core/decision.py --
+                             # previously undeclared, only present transitively via mixle's own numpy dependency.
+    "scipy",                 # imported directly in gateway/routes/tasks.py (drift p-value) -- same as numpy,
+                             # previously relied on mixle's transitive scipy dependency.
 ]
 
 [project.optional-dependencies]
@@ -31,11 +42,16 @@ export = ["reportlab>=4"]                           # PDF conversation export (j
 datasets = ["pandas>=2", "pyarrow>=15"]             # parquet dataset export
 structured = ["jsonschema>=4"]                      # constrained/structured-output validation (graceful fallback if absent)
 local = ["torch>=2", "transformers>=4"]             # local logit-level engine: token-level PoE + grammar masking
+                                                      # (TreeLogitProvider's KV-cache trie now rebuilds Cache
+                                                      # objects for transformers>=5 too -- see providers.py's
+                                                      # _fresh_past/_to_stored; verified against 4.57.6 and 5.13.1)
 cloud = ["psycopg[binary]>=3.1", "boto3>=1.34",     # managed Postgres + AWS
-         "fsspec>=2023.1", "s3fs", "gcsfs", "adlfs", "ossfs"]   # unified object store: S3/GCS/Azure/OSS
+         "s3fs", "gcsfs", "adlfs", "ossfs"]         # per-cloud object store drivers (fsspec itself is a base dep)
 mcp = ["mcp>=1.0"]                                   # MCP server/client (official SDK; minimal fallback otherwise)
-docs = ["sphinx>=7", "furo"]
-all = ["mixle-mlops[documents,scale,export,datasets,structured,local,cloud,mcp]"]
+image = ["diffusers>=0.27", "torch>=2"]              # local Stable Diffusion (image_gen/local_diffusion.py) --
+                                                      # previously imported (lazily) but not declared anywhere
+docs = ["sphinx>=7", "furo"]                          # build-time only; deliberately not part of `all`
+all = ["mixle-mlops[documents,scale,export,datasets,structured,local,cloud,mcp,image]"]
 
 [project.scripts]
 mixle-serve = "mixle_mlops.cli:serve"             # run the platform gateway
