@@ -48,6 +48,7 @@ isn't shipped on PyPI — clone the repo for that (see Develop, below). See
 | **Accounts, API keys, OAuth** (Sign in with Google/Apple) | `/auth/*`, `mk-…` keys |
 | **Multimodal** (image inputs), **RAG** (PDF/DOCX/PPTX upload + retrieval), **image gen**, **dataset gen** | `/v1/files`, `/v1/documents`, `/v1/rag/search`, `/v1/images/generations`, `/v1/datasets` |
 | **Conversations** (persisted threads + json/markdown/pdf export) | `/v1/conversations` |
+| **LoRA/QLoRA fine-tuning** (SFT via chat template + prompt masking, or raw continuation; resume a prior adapter) and loading a trained adapter into the live gateway | `/v1/fine_tunes`, `/v1/models/load` |
 | **Caching + rate limiting** (memory / Redis), **MCP server** | `extra` flags, `MIXLE_REDIS_URL`, `/mcp` |
 | **Chat UI** (Next.js, assistant-style conversation surface) | `frontend/` |
 | **Multi-cloud deploy** (AWS/Azure/GCP/Alicloud) | Helm chart + Terraform + `mixle-mlops init-cloud` |
@@ -67,8 +68,8 @@ make -C docs html SPHINXOPTS="-W --keep-going"
 
 Gateway surfaces are documented in
 [`docs/gateway-capabilities.rst`](docs/gateway-capabilities.rst): substrate
-serving, telemetry, pool jobs, creation verbs, Mixle model manifests, and drift
-retraining.
+serving, telemetry, pool jobs, creation verbs, Mixle model manifests, drift
+retraining, and LoRA/QLoRA fine-tuning.
 
 Release notes and the current changelog are in
 [`docs/release-notes.rst`](docs/release-notes.rst) and

@@ -6,7 +6,8 @@ Server Route Fails Locally
 
 Record the start command, backend configuration, and environment variables
 used. Confirm whether the route depends on optional extras such as storage,
-datasets, export, local models, or MCP.
+datasets, export, local models, LoRA adapters (the ``local`` extra's
+``peft``), or MCP.
 
 Also capture the response body and status code. A startup error, validation
 error, auth failure, provider failure, and storage failure require different

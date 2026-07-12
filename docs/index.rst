@@ -8,8 +8,8 @@ management, API keys, RAG, multimodal input, MCP tooling, feedback loops,
 dataset export, and deployment helpers.
 
 This manual also covers the gateway capability surfaces: substrate serving,
-telemetry, pool jobs, spend rails, creation verbs, lineage, and drift
-retraining.
+telemetry, pool jobs, spend rails, creation verbs, lineage, drift
+retraining, and LoRA/QLoRA fine-tuning.
 
 Start Here
 ----------

@@ -25,7 +25,8 @@ Package Map
     lineage, scheduler, signals, and workers.
 
 ``mixle_mlops.datasets`` and ``mixle_mlops.compute``
-    Dataset generation/export and external compute job launch descriptions.
+    Dataset generation/export and rented-GPU training job specs (LoRA/QLoRA
+    fine-tune script generation, offline planning, launch).
 
 ``mixle_mlops.storage`` and ``mixle_mlops.cache``
     Database, object-store, response-cache, Redis, in-memory cache, and rate

@@ -4,7 +4,8 @@ Validation
 The package has a broad test suite spanning gateway routes, providers,
 feedback, datasets, RAG, accounts, object storage, MCP, multimodal payloads,
 structured output, task cascades, pool jobs, substrate serving, telemetry,
-creation verbs, and drift retraining.
+creation verbs, drift retraining, and LoRA/QLoRA fine-tuning (adapter loading,
+SFT masking, and model-load registration).
 
 Focused validation:
 
@@ -15,7 +16,10 @@ Focused validation:
        tests/test_substrate_serving.py \
        tests/test_telemetry_serving.py \
        tests/test_verbs_serving.py \
-       tests/test_drift_retrain.py
+       tests/test_drift_retrain.py \
+       tests/test_local_engine.py \
+       tests/test_models_load.py \
+       tests/test_compute.py
 
 The local workspace needs the core Mixle package on ``PYTHONPATH`` unless
 ``mixle`` is installed into the active environment.

@@ -38,6 +38,9 @@ Deployment Mutation
 
 Promotion and deployment should be explicit, audited state transitions. A demo
 script or local feedback run should not silently mutate a production alias.
+``POST /v1/models/load`` (loading a completed fine-tune into the live
+registry) is gated to admins for exactly this reason: it changes what every
+caller sees at ``/v1/models``, so it should not be a self-service action.
 
 Audit Trail Expectations
 ------------------------

@@ -31,6 +31,8 @@ The gateway should be the boundary for:
 * Mixle model manifests and local model adapters;
 * substrate-style retrieve, reason, answer, and act routes;
 * pool or job execution requests;
+* fine-tuning (plan/train) and loading a completed artifact into the live
+  registry;
 * telemetry and usage records;
 * feedback and dataset export flows.
 

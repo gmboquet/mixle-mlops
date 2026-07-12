@@ -17,8 +17,9 @@ The package owns:
 * RAG indexes, document parsing, embeddings, and retrieval augmentation.
 * Feedback collection, reward modeling, self-evolution signals, and drift
   retraining orchestration.
-* Pool jobs, substrate routes, telemetry, creation verbs, lineage, and spend
-  rails documented by the gateway capability guide.
+* Pool jobs, substrate routes, telemetry, creation verbs, lineage, spend
+  rails, and LoRA/QLoRA fine-tuning documented by the gateway capability
+  guide.
 * Deployment helpers for local, container, and cloud environments.
 
 The package does not own Mixle's core probability models, PDE kernels, discrete
@@ -50,6 +51,10 @@ Primary Surfaces
 ``mixle_mlops.storage`` and ``mixle_mlops.cache``
     Database, object store, in-memory cache, Redis cache, response cache, and
     rate-limit primitives.
+
+``mixle_mlops.training`` and ``mixle_mlops.compute``
+    Fine-tune job records and the offline GPU training plan (LoRA/QLoRA,
+    SFT or continuation, rented-box launch and local artifact registration).
 
 A feature is not operationally ready merely because the route imports: release
 reviewers should be able to trace a request from entry route to provider call,
