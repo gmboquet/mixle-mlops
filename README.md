@@ -22,6 +22,21 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec ollama o
 curl localhost:8000/v1/models               # OpenAI-compatible
 ```
 
+## Installation
+
+Python 3.10+ (developed and verified on 3.12), on PyPI as `mixle-mlops`.
+
+```sh
+pip install mixle-mlops                       # base: gateway, echo model, accounts, local storage
+pip install "mixle-mlops[all]"                 # + documents, datasets, export, structured, local, cloud, mcp, image
+mixle-mlops init-db && mixle-mlops create-user you@example.com pw --admin
+mixle-serve                                    # the gateway on :8000
+```
+
+This installs the gateway package only. The chat UI (`frontend/`) is a separate Next.js app that
+isn't shipped on PyPI — clone the repo for that (see Develop, below). See
+[`docs/installation.rst`](docs/installation.rst) for the full extras list.
+
 ## What's in the box
 
 | Capability | Surface |

@@ -8,14 +8,22 @@ cloud credentials or a model registry.
 Install for Local Gateway Work
 ------------------------------
 
-From the repository root:
+``mixle-mlops`` is published on PyPI, so no clone is required for this path:
+
+.. code-block:: console
+
+   pip install mixle-mlops
+
+Working from a clone of the repository instead (for example, to also run the
+chat UI or change route code) uses the editable install:
 
 .. code-block:: console
 
    python -m pip install -e ".[dev]"
 
 Use additional extras only for the surface under review, such as datasets,
-structured outputs, object storage, or optional cloud backends.
+structured outputs, object storage, or optional cloud backends. See
+:doc:`installation` for the full extras list.
 
 Start the Gateway
 -----------------

@@ -10,6 +10,16 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [{ name = "Grant Boquet" }]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    # Only 3.12 is classified even though requires-python allows 3.10+: that's the only version this
+    # release was actually verified against (no CI matrix exists yet to cover 3.10/3.11 -- see
+    # release-checklists/0.7.0.md S2). Add 3.10/3.11 here once they're actually tested, not before.
+    "Programming Language :: Python :: 3.12",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+]
 dependencies = [
     # mixle core (the model primitives + the probabilistic differentiator). Published on PyPI as `mixle`.
     # Floor is 0.6.1: mixle.evolve, mixle.task(.calibrate/.density/.distill/.model), mixle.ops.product_of_experts,

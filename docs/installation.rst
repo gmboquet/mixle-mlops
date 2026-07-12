@@ -6,7 +6,26 @@ because it owns gateway, account, storage, provider, dataset, document, cloud,
 and MCP integrations. Install only the extras required for the surface you are
 validating, and record those extras in release evidence.
 
-Local development install:
+PyPI Install
+------------
+
+``mixle-mlops`` is published on PyPI. For running the gateway without cloning
+the repository:
+
+.. code-block:: console
+
+   pip install mixle-mlops
+   pip install "mixle-mlops[all]"   # + documents, datasets, export, structured, local, cloud, mcp, image
+
+This installs the gateway package only. The chat UI (``frontend/``) is a
+separate Next.js application that is not shipped on PyPI; clone the repository
+for that surface (see below).
+
+Local Development Install
+--------------------------
+
+For contributing to the package itself, clone the repository and install from
+source:
 
 .. code-block:: console
 

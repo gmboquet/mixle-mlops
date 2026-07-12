@@ -9,10 +9,11 @@ local and cloud environments.
 0.7.0
 -----
 
-0.7.0 is the first checklist-verified release: coordinated with ``mixle``
-core's 0.7.0, it went through a full release-readiness pass (see
-``release-checklists/0.7.0.md`` in the repository root) rather than only a
-documentation-completion pass. That pass built the sdist/wheel and installed
+0.7.0 is the first version of ``mixle-mlops`` published to PyPI (see
+:doc:`installation`) and the first checklist-verified release: coordinated
+with ``mixle`` core's 0.7.0, it went through a full release-readiness pass
+(see ``release-checklists/0.7.0.md`` in the repository root) rather than only
+a documentation-completion pass. That pass built the sdist/wheel and installed
 them into a fresh, isolated environment; ran the full test suite (route,
 provider, feedback, dataset, RAG, account, storage, MCP, multimodal, pool,
 substrate, telemetry, creation-verb, and drift-retraining coverage) as one
