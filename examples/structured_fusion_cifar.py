@@ -1,12 +1,12 @@
 """Real CIFAR patches, from scratch, on a laptop: the accuracy/compute Pareto of structured vs attention fusion.
 
-The synthetic Level-3 demo isolated the fusion architecture; this runs it on REAL images. A CIFAR image is
+The synthetic Level-3 demo isolated the fusion architecture; this runs it on real images. A CIFAR image is
 split into a grid of patches (the tokens), and we train three from-scratch models that share the same per-patch
 encoder and differ only in how they aggregate:
 
   * PoE            -- ``StructuredFusionClassifier``: parameter-free precision-weighted fusion, O(N). On real
-                      images patches are NOT independent (spatial arrangement matters), so pure structure trails.
-  * hybrid(1 attn) -- ``HybridFusionClassifier``: ONE attention layer to mix relations, then the structured PoE
+                      images patches are not independent (spatial arrangement matters), so pure structure trails.
+  * hybrid(1 attn) -- ``HybridFusionClassifier``: one attention layer to mix relations, then the structured PoE
                       readout. The bet: near-/above-ViT accuracy at less compute.
   * ViT            -- a plain transformer over the patches with CLS pooling (the unstructured baseline).
 

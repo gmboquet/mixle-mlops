@@ -1,20 +1,20 @@
-"""Re-represent a REAL VLM (CLIP) with a mixle structured model -- the honest, measured bridge to Qwen-scale.
+"""Re-represent a real VLM (CLIP) with a mixle structured model -- the honest, measured bridge to Qwen-scale.
 
 The 2-D flow->GMM demo shows the *mechanism*; this shows it on an actual vision-language model. The teacher
 is ``openai/clip-vit-base-patch32`` (151M params), doing zero-shot CIFAR-10 classification -- a genuine VLM
-computing ``p(class | image)`` by image/text embedding similarity. We re-represent its DECISION FUNCTION with
+computing ``p(class | image)`` by image/text embedding similarity. We re-represent its decision function with
 a tiny mixle structured model: a per-class diagonal-Gaussian generative classifier over CLIP's embeddings.
 
 What this delivers, measured:
   * a ~10k-parameter structured model reproduces CLIP's decisions at ~92% agreement (and matches its task
     accuracy) -- roughly 15000x fewer parameters in the decision layer;
-  * its confidence is CALIBRATED: on the confident mass it agrees with CLIP ~95-98%, and it abstains on the
+  * its confidence is calibrated: on the confident mass it agrees with CLIP ~95-98%, and it abstains on the
     ambiguous mass -- the honest UQ a bare VLM head does not give you.
 
 The honest boundaries, stated plainly (not hidden):
   * this re-represents the decision layer over the VLM's *own* embeddings -- you still run the encoder; the
     win is a tiny, portable, calibrated head with abstention, not a smaller ViT;
-  * you CANNOT skip the encoder on a perception-hard task: a structured model on cheap downsampled pixels
+  * you cannot skip the encoder on a perception-hard task: a structured model on cheap downsampled pixels
     scores ~29% on CIFAR (it needs the encoder's features). Encoder-skipping only pays where cheap features
     carry the signal.
 
@@ -151,7 +151,7 @@ def main():
         )
     top75 = order[: int(0.75 * len(order))]
     print(
-        f"-> on the confident 75% it agrees with CLIP {agree[top75].mean():.0%}; it ABSTAINS on the ambiguous "
+        f"-> on the confident 75% it agrees with CLIP {agree[top75].mean():.0%}; it abstains on the ambiguous "
         f"tail. That calibrated abstention is the UQ a bare VLM head does not give you."
     )
 
@@ -161,9 +161,9 @@ def main():
     cheap_clf = StructuredClassifier(diagonal=True).fit((tr_cheap - mu) / sd, tr_pred, len(classes))
     cheap_acc = (cheap_clf.predict((te_cheap - mu) / sd) == te_true).mean()
     print(
-        f"\nHONEST BOUNDARY: a structured model on cheap downsampled pixels (no encoder) scores only "
+        f"\nHonest boundary: a structured model on cheap downsampled pixels (no encoder) scores only "
         f"{cheap_acc:.0%} — CIFAR needs the ViT's features, so you cannot skip the encoder here. The win above "
-        f"is a tiny, calibrated, portable re-representation of the VLM's DECISION LAYER, not a smaller encoder.\n"
+        f"is a tiny, calibrated, portable re-representation of the VLM's decision layer, not a smaller encoder.\n"
         f"The same pipeline distills Qwen-VL's decisions the moment you can sample it on a task."
     )
 

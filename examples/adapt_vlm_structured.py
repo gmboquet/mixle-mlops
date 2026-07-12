@@ -1,17 +1,17 @@
-"""Adapt a real VLM (CLIP) on a laptop with a STRUCTURED bridge -- structure is what extracts the signal.
+"""Adapt a real VLM (CLIP) on a laptop with a structured bridge -- structure is what extracts the signal.
 
-Grant's thesis: structured architecture is what makes VLM training feasible on a laptop. You cannot train the
-encoder (billions of FLOPs); you train the BRIDGE on top, and the choice of bridge is the whole game. Measured
+The core claim: structured architecture is what makes VLM training feasible on a laptop. You cannot train the
+encoder (billions of FLOPs); you train the bridge on top, and the choice of bridge is the whole game. Measured
 on real CLIP + CIFAR-100, few-shot (16 images/class), over several class splits:
 
-  * ``mixle.reason.StructuredAdapter`` (diagonal + low-rank residual, ~9k params) RELIABLY adapts the task
+  * ``mixle.reason.StructuredAdapter`` (diagonal + low-rank residual, ~9k params) reliably adapts the task
     (~+4.4%, tiny variance) and preserves CLIP's zero-shot transfer to classes it never trained on;
   * a full-matrix bridge (unstructured, ~260k params -- 30x larger) barely adapts at all (~+0.1%, high
     variance) under the same regularization -- it cannot extract a useful adaptation from laptop-scale data.
 
 Both train in seconds on CPU over frozen CLIP embeddings; only the bridge trains. Structure is the inductive
 bias that turns 1280 examples into a real adaptation; without it the same regularized capacity finds nothing.
-Both preserve transfer here -- the honest headline is SAMPLE EFFICIENCY, not the (non-robust) claim that a big
+Both preserve transfer here -- the honest headline is sample efficiency, not the (non-robust) claim that a big
 bridge destroys generality.
 
 Honest scope: this adapts a frozen frontier encoder; it is not training a VLM from scratch, and the gain is
@@ -53,7 +53,7 @@ def main():
     Xtr, ytr, Xte, yte, Tcls = d["Xtr"], d["ytr"], d["Xte"], d["yte"], d["Tcls"]
     dim = Xtr.shape[1]
 
-    print("adapt frozen CLIP with a laptop-trained bridge; Δ = accuracy minus CLIP's own zero-shot on the SAME")
+    print("adapt frozen CLIP with a laptop-trained bridge; Δ = accuracy minus CLIP's own zero-shot on the same")
     print("class set (so the split's difficulty cancels). Mean of 5 class splits, 16 shots/seen-class.\n")
     print(f"{'bridge':<26}{'params':>9}{'seen Δ':>14}{'unseen Δ':>14}")
 

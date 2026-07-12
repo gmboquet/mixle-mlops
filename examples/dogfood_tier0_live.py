@@ -13,7 +13,7 @@ What this command exercises:
   4. mixle-agent's Tier0Router (TypeScript fetch) runs against the live gateway via
      `node --test tier0.live.test.ts`: the confident request must come back with the expected tool
      and args; the unsure one must escalate, and the posted "frontier" call must be accepted.
-  5. The harvest is verified ON DISK in the registry — the trace that trains the next round.
+  5. The harvest is verified on disk in the registry — the trace that trains the next round.
 
 Exit 0 means the loop was exercised: agent -> local model -> tool call or escalation -> harvest.
 """
@@ -103,7 +103,7 @@ def main() -> int:
         )
         tc.save(str(registry / "toolcallers" / "assistant"))
 
-        # the artifact itself decides which fresh requests it trusts — the test then must AGREE over HTTP
+        # the artifact itself decides which fresh requests it trusts — the test then must agree over HTTP
         confident = escalate = expected_tool = None
         for r in _requests(80, seed=7):
             local = tc.try_local(r)
@@ -144,7 +144,7 @@ def main() -> int:
             assert served == {"toolcallers": ["assistant"]}, served
             print(f"[3/5] gateway healthy on :{port}, artifact listed, auth live")
 
-            print("[4/5] running mixle-agent's REAL Tier0Router against it (node --test) ...")
+            print("[4/5] running mixle-agent's real Tier0Router against it (node --test) ...")
             node_env = dict(
                 os.environ,
                 MIXLE_MLOPS_URL=base,
@@ -165,14 +165,14 @@ def main() -> int:
             sys.stdout.write(node.stdout[-2000:])
             if node.returncode != 0:
                 sys.stderr.write(node.stderr[-2000:])
-                print("node --test FAILED")
+                print("node --test failed")
                 return 1
 
             harvested = registry / "toolcallers" / "assistant" / "harvested.jsonl"
             trace = json.loads(harvested.read_text().splitlines()[-1])
             assert trace["input"] == escalate and trace["call"]["tool"] == "search", trace
             print("[5/5] harvest verified on disk — the escalated trace is queued for the next round")
-            print("\nDOGFOOD LOOP CLOSED: agent -> tiny model -> {tool call | escalate} -> harvest. All real.")
+            print("\nDogfood loop closed: agent -> tiny model -> {tool call | escalate} -> harvest.")
             return 0
         finally:
             gw.terminate()

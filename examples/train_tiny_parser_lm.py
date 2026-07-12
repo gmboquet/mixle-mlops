@@ -1,22 +1,22 @@
-"""Close the loop for real: factory -> verified pairs -> from-scratch tiny LM -> EXECUTION accuracy.
+"""Close the loop for real: factory -> verified pairs -> from-scratch tiny LM -> execution accuracy.
 
 This is the honest end-to-end run of the "train a tiny LLM to parse HTML by writing code" pipeline:
 
 1. The verified data factory (:mod:`mixle_mlops.datasets.code_tasks`) manufactures tasks -- pages
-   rendered FROM known records -- and harvests ``(page-snippet -> parser code)`` pairs whose code was
-   EXECUTED in the sandbox and reproduced the truth. No pair enters training on anyone's word.
+   rendered from known records -- and harvests ``(page-snippet -> parser code)`` pairs whose code was
+   executed in the sandbox and reproduced the truth. No pair enters training on anyone's word.
 2. A from-scratch causal Transformer (``mixle.models.language_model.LM``, ~0.65M params, no
    pretraining) is SFT-trained on those pairs with ``fit_pairs`` (dense teacher forcing, loss masked to
    the code). Tokens are identifier-level (a field name is one token), so "copy the fields from this
    page into the record constructor" is a single induction step -- the reason real code models tokenize.
-3. The student is scored the only way that matters -- by RUNNING its generated programs against pages
-   from schema combinations it NEVER saw in training. Crucially it runs its OWN code at inference: the
+3. The student is scored the only way that matters -- by running its generated programs against pages
+   from schema combinations it never saw in training. Crucially it runs its own code at inference: the
    write->run->fix repair loop (feed the real traceback back) and label-free self-consistency (sample
-   several, keep what the programs AGREE on) -- no ground truth needed at serving time.
+   several, keep what the programs agree on) -- no ground truth needed at serving time.
 
 Scope, honestly: the model reads a capped snippet of the page's data region (template + field names +
 one data row for value shapes), not arbitrary web HTML, and the field-name pool is fixed with one type
-per name. Generalization tested = UNSEEN (field-combination x order x template) tasks. Scaling beyond
+per name. Generalization tested = unseen (field-combination x order x template) tasks. Scaling beyond
 this is a capacity/data question (SmolLM2-class base via ``POST /v1/fine_tunes``), not a pipeline one:
 every stage here is exactly what the bigger run reuses.
 
@@ -59,7 +59,7 @@ FIELD_POOL = {
     "code": "str",
     "mass": "float",
 }
-SNIPPET_CHARS = 176  # data region cap: header/first item + one data row (field names AND value shapes)
+SNIPPET_CHARS = 176  # data region cap: header/first item + one data row (field names and value shapes)
 # id 0 = PAD; the rest are separators that never occur in pages or code, so they stay atomic tokens.
 SEP, EOS, ERRSEP, FIXSEP, PAD = "\t", "\v", "\x1e", "\x1d", 0
 
@@ -101,7 +101,7 @@ def main() -> dict:
     t0 = time.time()
     rng = np.random.RandomState(0)
 
-    # --- 1. manufacture tasks; hold out COMBINATIONS the student will never see ------------------------
+    # --- 1. manufacture tasks; hold out combinations the student will never see ------------------------
     combos = list(itertools.permutations(FIELD_POOL, 3))
     rng.shuffle(combos)
     train_combos, eval_combos = (combos[25:33], combos[:3]) if SMOKE else (combos[25:135], combos[:25])
@@ -109,7 +109,7 @@ def main() -> dict:
     eval_tasks = combo_tasks(eval_combos, seeds=(7,))
     print(
         f"tasks: {len(train_tasks)} train ({len(train_combos)} combos x 3 templates x 2 seeds), "
-        f"{len(eval_tasks)} eval on {len(eval_combos)} UNSEEN combos"
+        f"{len(eval_tasks)} eval on {len(eval_combos)} unseen combos"
     )
 
     # --- 2. harvest execution-verified pairs (the factory refuses anything that doesn't run true) ------
@@ -119,8 +119,8 @@ def main() -> dict:
     ds.save_jsonl(str(jsonl))
     print(f"harvested: {len(ds.trajectories)} verified pairs (yield {ds.yield_rate:.0%}) -> {jsonl.name}")
 
-    # --- 3. tokenized corpus: fresh pairs + REPAIR pairs (so the model learns write->run->fix) ----------
-    # Identifier-level tokens: each field name ("price") is ONE token in both the page snippet and the
+    # --- 3. tokenized corpus: fresh pairs + repair pairs (so the model learns write->run->fix) ----------
+    # Identifier-level tokens: each field name ("price") is one token in both the page snippet and the
     # code. That turns "copy the field names from this page into the record constructor" into a single
     # induction step a tiny model actually learns -- char-level makes copying a 5-char sequence and the
     # model instead memorizes global field->type stats and hallucinates the combo (verified: it did).
@@ -139,7 +139,7 @@ def main() -> dict:
         # fixable from the code + traceback; this also keeps the repair prompt short (block stays ~320)
         return tokenize(failed_code) + [ERRSEP] + tokenize(error) + [FIXSEP]
 
-    # fresh (snippet -> correct code) plus repair (snippet + broken code + REAL traceback -> correct code).
+    # fresh (snippet -> correct code) plus repair (snippet + broken code + real traceback -> correct code).
     # The broken drafts are corruptions of the verified program, executed to capture their genuine error --
     # so the repair examples teach recovery from the errors the model will actually produce.
     pairs_tok = []
@@ -193,13 +193,13 @@ def main() -> dict:
     lm.fit_pairs(pairs_text, epochs=fine, batch_size=32, lr=5e-4, seed=1)
     print(f"trained in {time.time() - t_fit:.0f}s")
 
-    # --- 5. serving: the model runs its OWN code and judges it WITHOUT ground truth --------------------
+    # --- 5. serving: the model runs its own code and judges it without ground truth --------------------
     # On a real page there is no truth to check against, so we score the label-free serving modes and only
-    # use the held-out truth to MEASURE them. One shared pool of samples keeps the eval cheap:
+    # use the held-out truth to measure them. One shared pool of samples keeps the eval cheap:
     #   greedy            sample 0 alone (the baseline).
-    #   self-consistency  run all N, return the record-set the most programs AGREE on; agreement = a
+    #   self-consistency  run all N, return the record-set the most programs agree on; agreement = a
     #                     confidence (does it predict correctness?).
-    #   best-of-N oracle  any sample that matches truth -- an UPPER BOUND (uses labels; not deployable).
+    #   best-of-N oracle  any sample that matches truth -- an upper bound (uses labels; not deployable).
     #   repair-loop       write -> run -> feed the real traceback back -> fix (the "then run it" loop) --
     #                     its own sequential pass, since each turn depends on the previous error.
     eos_id, max_new, N = stoi[EOS], 200, 6
@@ -257,7 +257,7 @@ def main() -> dict:
     n = len(rows)
     frac = lambda key: sum(r[key] for r in rows) / n  # noqa: E731
 
-    print("\n=== serving on UNSEEN schema combinations (label-free unless noted) ===", flush=True)
+    print("\n=== serving on unseen schema combinations (label-free unless noted) ===", flush=True)
     print(f"greedy          : exact {frac('greedy_ok'):.2%}  ran {frac('greedy_ran'):.2%}")
     repaired = frac("repair_ok") - frac("greedy_ok")
     print(

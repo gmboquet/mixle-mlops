@@ -1,16 +1,16 @@
 """Level 3: train a structured-fusion model from scratch and compare it to cross-attention -- on a laptop.
 
 Not distilling a frozen encoder (that was Level 1/2). This trains the whole thing end to end, and the point is
-the FUSION ARCHITECTURE. A multimodal model aggregates N token/patch/sensor observations into an answer.
+the fusion architecture. A multimodal model aggregates N token/patch/sensor observations into an answer.
 Dense cross-attention does it in O(N^2) with a learned transformer block; ``mixle.reason``'s
 StructuredFusionClassifier does it in O(N) with a parameter-free product-of-experts fusion -- the "combine
 independent evidence about a shared latent" inductive bias built in, not learned.
 
 Two regimes, both trained from scratch on CPU, so the honest picture is complete:
 
-  A. EXCHANGEABLE EVIDENCE (each token is a partial view of a shared latent class -- the common case):
+  A. Exchangeable evidence (each token is a partial view of a shared latent class -- the common case):
      structured fusion matches or beats attention's accuracy at far fewer parameters and much faster training.
-  B. RELATIONAL (the label depends on a specific token position): structured fusion is permutation-invariant
+  B. Relational (the label depends on a specific token position): structured fusion is permutation-invariant
      and sits at chance; attention-with-positions wins. This is the boundary -- structured fusion cannot model
      order or interactions.
 
@@ -65,7 +65,7 @@ def exchangeable(n, seed, protos, proj):
 
 
 def relational(n, seed):
-    """Binary label = is token 0 'bigger' than token 1? Depends on POSITION -- needs attention."""
+    """Binary label = is token 0 'bigger' than token 1? Depends on position -- needs attention."""
     r = np.random.RandomState(seed)
     x = r.randn(n, N, DTOK).astype(np.float32)
     y = ((x[:, 0] ** 2).sum(1) > (x[:, 1] ** 2).sum(1)).astype(np.int64)
@@ -107,7 +107,7 @@ def main():
         aa, ap, adt = train_eval(AttentionFusion(K), xtr, ytr, xte, yte)
         print(f"{n:>8}{pa:>9.3f}{aa:>10.3f}{pp:>9}{ap:>9}{pdt:>7.1f}{adt:>8.1f}")
 
-    print("\n=== regime B: relational (label depends on token POSITION) -- the honest boundary ===")
+    print("\n=== regime B: relational (label depends on token position) -- the honest boundary ===")
     xte, yte = relational(3000, 999)
     for n in (2000, 6000):
         xtr, ytr = relational(n, n)
