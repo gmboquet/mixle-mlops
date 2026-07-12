@@ -47,18 +47,10 @@ echo model, and the route returns without contacting an external provider.
 Serve a Packaged Mixle Model
 ----------------------------
 
-The thin model-server surface in ``mixle_mlops.app`` serves a model promoted in
-a Mixle production registry:
-
-.. code-block:: console
-
-   MIXLE_REGISTRY_ROOT=/models \
-   MIXLE_MODEL_NAME=model \
-   MIXLE_MODEL_ALIAS=production \
-   python -m uvicorn mixle_mlops.app:app --host 127.0.0.1 --port 8001
-
-Use this path only when a registry exists. Gateway validation and packaged
-model serving are separate checks.
+A model promoted in a Mixle production registry is served through the same
+gateway, not a separate process: register it into the gateway's model
+registry (see :doc:`gateway-capabilities`), then call it through
+``/v1/mixle/{predict,score,latent,decide}`` like any other registered model.
 
 Next Steps
 ----------

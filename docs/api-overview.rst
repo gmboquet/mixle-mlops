@@ -73,7 +73,7 @@ Accounts, Conversations, and Access Control
     Conversation records, export helpers, and service functions for preserving
     chat state and review evidence across gateway calls.
 
-``mixle_mlops.config`` and ``mixle_mlops.app``
+``mixle_mlops.config`` and ``mixle_mlops.gateway.app``
     Configuration loading and application assembly. Review these modules when
     changing environment variables, storage paths, provider defaults, or server
     startup behavior.

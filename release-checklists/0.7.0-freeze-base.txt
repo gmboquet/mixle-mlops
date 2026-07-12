@@ -13,7 +13,7 @@ httptools==0.8.0
 httpx==0.28.1
 idna==3.18
 mixle==0.7.0
-mixle-mlops @ file:///private/tmp/claude-501/-Users-grantboquet-mixle/a107dfd3-b2d2-403f-b954-d40c6d97ea72/scratchpad/mlops-release/mixle-mlops/dist/mixle_mlops-0.7.0-py3-none-any.whl#sha256=b2325b231b42e489ab8e7f1a47093e94cfcf5e55e9dde4fb36b9293adf9f6836
+mixle-mlops @ file:///tmp/mlops-dist/mixle_mlops-0.7.0-py3-none-any.whl#sha256=78d1845868691db12401430bc3f4810b22366519785c9e8a18d11dccac10bb56
 mpmath==1.4.1
 numpy==2.5.1
 pycparser==3.0

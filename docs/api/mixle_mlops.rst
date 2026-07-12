@@ -32,7 +32,6 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   mixle_mlops.app
    mixle_mlops.cli
    mixle_mlops.cloud_init
    mixle_mlops.config
