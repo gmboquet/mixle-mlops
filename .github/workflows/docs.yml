@@ -1,0 +1,65 @@
+name: Docs
+
+# Build the Sphinx manual and deploy it to GitHub Pages. Runs on pushes to main that touch the docs
+# or the documented package, and on manual dispatch. The site source stays as .rst under docs/; the
+# built HTML is never committed (docs/_build/ is gitignored) -- it is produced here and served from
+# Pages. Unlike mixle core, this is a single current-version build (no sphinx-polyversion): the docs
+# extra alone (sphinx, furo) is enough, since every documented module defers its heavy imports (torch,
+# transformers, peft) rather than requiring them at import time -- verified against a clean
+# pip install -e ".[docs]" venv before adding this workflow.
+#
+# One-time setup (repo Settings > Pages): set the source to "GitHub Actions". This workflow already has
+# the permissions the deploy step needs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mixle_mlops/**"
+      - "pyproject.toml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+# Least-privilege token plus the OIDC + pages permissions the deploy-pages action requires.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deployment at a time; let an in-progress deploy finish rather than cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build HTML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install docs extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs]"
+      - name: Build
+        run: |
+          sphinx-build -b html -W --keep-going docs docs/_build/html
+          touch docs/_build/html/.nojekyll   # serve _static/ etc. verbatim (no Jekyll processing)
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
