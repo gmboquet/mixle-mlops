@@ -111,3 +111,10 @@ release-readiness pass (see `release-checklists/0.7.0.md`).
   it now point at `docs/overview.rst`/`docs/package-map.rst` instead.
 - The README's self-evolution note claimed `mixle.evolve` was only available on an unmerged branch;
   it has shipped on PyPI since `mixle` 0.6.1.
+
+### Security
+
+- Six routes (`models`, `substrate`, `tasks`, `route`, `solutions`, `agentic`) built a filesystem
+  path directly from a client-supplied name (`{root}/{name}`) with no validation against path
+  traversal or an absolute-path override. Added a shared validator (rejects empty/`/`/`\`/`..`
+  names, plus an independent `.resolve()`-based check) and applied it at every call site.
