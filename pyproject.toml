@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff==0.15.17", "pytest>=8", "pytest-asyncio>=0.23", "fakeredis>=2"]
+dev = ["ruff==0.15.17", "pytest>=8", "pytest-asyncio>=0.23", "fakeredis>=2", "moto[s3]>=5"]
 documents = ["pypdf>=4", "python-docx>=1", "python-pptx>=0.6"]   # PDF/DOCX/PPTX ingestion for RAG
 scale = ["redis>=5"]                                # shared cache + cross-replica rate limiting
 export = ["reportlab>=4"]                           # PDF conversation export (json/markdown are stdlib)
