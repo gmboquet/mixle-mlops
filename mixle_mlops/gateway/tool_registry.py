@@ -12,10 +12,13 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
+from mixle.task.replay import TraceStep
+
 from ..core.adapters import FunctionDef, ToolDef
 from ..core.registry import ModelRegistry
 from ..mcp.schema_bridge import mcp_tool_to_tooldef
 from ..mcp.server import build_model_tools
+from .trace_capture import record_tool_call
 
 Handler = Callable[[dict[str, Any]], Awaitable[Any]]
 
@@ -23,9 +26,13 @@ Handler = Callable[[dict[str, Any]], Awaitable[Any]]
 class ToolRegistry:
     def __init__(self, registry: ModelRegistry, *, user_id: str | None = None,
                  names: list[str] | None = None, include_mcp: bool = True,
-                 include_rag: bool = True, include_mixle: bool = True):
+                 include_rag: bool = True, include_mixle: bool = True,
+                 model_id: str | None = None, verifier: Any = None):
         self.registry = registry
         self.user_id = user_id
+        self.model_id = model_id      # the calling chat model's id, stamped onto every recorded step (M4a)
+        self.verifier = verifier      # an optional IC-6 Verifier gating each dispatched tool's result
+        self.trace_steps: list[TraceStep] = []   # every call this turn, already ExecutionTrace-ready (M4a)
         self._whitelist = set(names) if names else None      # optional restriction of the exposed catalog
         self._defs: dict[str, ToolDef] = {}
         self._handlers: dict[str, Handler] = {}
@@ -103,9 +110,15 @@ class ToolRegistry:
         if handler is None:
             return {"error": f"unknown tool {name!r}"}
         try:
-            return await handler(args)
+            result = await handler(args)
         except Exception as exc:                              # tool failures reported in-band, never crash the loop
-            return {"error": str(exc)}
+            result = {"error": str(exc)}
+        # M4a: every dispatched call becomes a TraceStep with its calling model + (optional) verdict
+        # stamped in, so the turn this call was part of can be bound into a Receipt after the fact.
+        self.trace_steps.append(
+            record_tool_call(name, args, result, model_id=self.model_id or "", verifier=self.verifier)
+        )
+        return result
 
     # --- handlers ---
     async def _rag_search(self, args: dict[str, Any]) -> Any:

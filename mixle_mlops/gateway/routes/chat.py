@@ -4,6 +4,7 @@ Each stage is gated/opt-in/defensive so the default path stays simple and the ex
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
@@ -61,6 +62,24 @@ def _record_signal(model_id: str, *, kind: str, confidence=None, escalated=None)
         pass
 
 
+def _persist_trace(tool_reg, question: str, name: str, assistant_text: str, *, stopped_reason: str) -> None:
+    """Bind this agentic turn's dispatched tool calls (`tool_reg.trace_steps`, stamped by `ToolRegistry`)
+    into a `Receipt` and land it in the durable M4 trace foundry feed (M4a). Best-effort, same as
+    `_persist`/`_record_signal`: capturing a trace must never fail or slow down the chat response."""
+    try:
+        from mixle.substrate import Substrate
+
+        from ..trace_capture import capture_steps
+
+        root = Path(get_settings().registry_root) / "substrate" / "agent_traces"
+        sink = Substrate(str(root))
+        capture_steps(question, tool_reg.trace_steps, assistant_text, model_id=name, sink=sink,
+                     provenance={"stopped_reason": stopped_reason})
+        sink.save()
+    except Exception:
+        pass
+
+
 @router.post("/chat/completions")
 async def chat_completions(req: ChatRequest, request: Request, response: Response,
                            user: User | None = Depends(current_user)):
@@ -106,8 +125,9 @@ async def chat_completions(req: ChatRequest, request: Request, response: Respons
         from ..agent_loop import run_agent_loop
         from ..tool_registry import ToolRegistry
 
+        question = req.messages[-1].text() if req.messages else ""
         tool_reg = ToolRegistry(registry, user_id=user.id if user is not None else None,
-                                names=req.extra.get("tools"))
+                                names=req.extra.get("tools"), model_id=name)
         max_iters = req.max_tool_iters or 6
         if req.stream:
             async def agent_stream():
@@ -116,6 +136,7 @@ async def chat_completions(req: ChatRequest, request: Request, response: Respons
                 chunk = ChatCompletionChunk(model=name, choices=[ChatChunkChoice(
                     index=0, delta=ChoiceDelta(role="assistant", content=text), finish_reason="stop")])
                 yield f"data: {chunk.model_dump_json()}\n\n"
+                _persist_trace(tool_reg, question, name, text, stopped_reason="agent_stream")
                 cid = _persist(user, req, name, text)
                 if cid:
                     yield f"data: {json.dumps({'conversation_id': cid})}\n\n"
@@ -124,7 +145,9 @@ async def chat_completions(req: ChatRequest, request: Request, response: Respons
             return StreamingResponse(agent_stream(), media_type="text/event-stream",
                                      headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         completion = await run_agent_loop(adapter, req, tool_reg, max_iters=max_iters)
-        cid = _persist(user, req, name, completion.choices[0].message.text() if completion.choices else "")
+        answer_text = completion.choices[0].message.text() if completion.choices else ""
+        _persist_trace(tool_reg, question, name, answer_text, stopped_reason="agent")
+        cid = _persist(user, req, name, answer_text)
         if cid:
             response.headers["X-Conversation-Id"] = cid
         return completion
