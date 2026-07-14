@@ -211,8 +211,11 @@ def _install_query_posterior_tool(monkeypatch):
     scope for F4 (surfacing only)."""
     original_build = ToolRegistry._build
 
-    def patched_build(self, include_mcp, include_rag, include_mixle):
-        original_build(self, include_mcp, include_rag, include_mixle)
+    def patched_build(self, *args, **kwargs):
+        # Forward whatever ToolRegistry._build's real signature currently expects (it has grown
+        # positional params, e.g. D7's `include_platform`, since this stub was first written) so this
+        # fixture keeps working across upstream signature changes instead of hard-coding an arity.
+        original_build(self, *args, **kwargs)
         self._add(
             ToolDef(
                 function=FunctionDef(
