@@ -16,11 +16,20 @@ from ...core.adapters import (
     ChatCompletionChunk,
     ChatRequest,
     ChoiceDelta,
+    ImagePart,
 )
-from ...multimodal.content import MultimodalError, normalize_messages
+from ...multimodal.content import MultimodalError, has_vision, normalize_messages, select_vision_model
 from ..auth import current_user
 
 router = APIRouter()
+
+
+def _has_image_part(messages: list) -> bool:
+    """Whether any message carries an image content part (post file-ref resolution)."""
+    return any(
+        isinstance(m.content, list) and any(isinstance(p, ImagePart) for p in m.content)
+        for m in messages
+    )
 
 
 def _principal(user: User | None, request: Request) -> str:
@@ -89,6 +98,18 @@ async def chat_completions(req: ChatRequest, request: Request, response: Respons
         req.messages = normalize_messages(req.messages)
     except MultimodalError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+    # 2b. vision-capability gate: a request carrying an image but naming a model that can't see gets rerouted
+    #     to a registered vision-capable model (cheapest, if more than one) rather than silently sending pixels
+    #     to a text-only backend; no vision model available at all is a 400, not a confusing downstream failure.
+    if _has_image_part(req.messages) and not has_vision(adapter):
+        try:
+            name = select_vision_model(registry, name)
+        except MultimodalError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        adapter = registry.get(name)
+        req.model = name
+        response.headers["X-Vision-Model"] = name
 
     # 3. RAG: augment with retrieved context from this user's past conversations + documents (opt-in via extra.rag)
     if user is not None and req.extra.get("rag"):

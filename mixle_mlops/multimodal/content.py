@@ -8,19 +8,41 @@ expect:
     ``data:`` URL by reading it from the :class:`BlobStore`.
 
 This keeps the gateway backend-agnostic: by the time a request leaves ``normalize_messages`` every image is a
-self-contained ``image_url`` part, so :class:`OpenAICompatAdapter` just forwards it to the vision LLM."""
+self-contained ``image_url`` part, so :class:`OpenAICompatAdapter` just forwards it to the vision LLM.
+
+D5 adds two more concerns that live here rather than in a new module, because both are extensions of "how an
+image part gets resolved":
+
+  * vision-capability routing (``has_vision``/``select_vision_model``) — a request naming a text-only model
+    but carrying an image should be rerouted to a vision-capable model rather than silently dropping/breaking.
+  * a serializable image sidecar (``GeoRef``/``StructuredMediaRef``) — a large tiled raster (D1's ``RasterTile``)
+    should travel through bundles/tool provenance as a small content-addressed reference (blob id + hash +
+    spatial frame), not as an inlined ``data:`` blob, and an ``ImagePart`` is only ever materialized ephemerally
+    at the adapter boundary via ``to_image_part``. There is deliberately no process-local ``dict[id(part)]``
+    registry: everything the sidecar needs to carry survives a ``to_dict()``/``from_dict()`` JSON round trip."""
 from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import re
+from dataclasses import dataclass, field, replace
+from typing import Any
 
-from ..core.adapters import ChatMessage, ContentPart, ImagePart, TextPart
+from ..core.adapters import ChatMessage, ContentPart, ImagePart, ModelAdapter, TextPart
+from ..core.registry import ModelRegistry
 from .store import BlobStore, get_blob_store
 
 # Reasonable defaults; a vision request with a 30 MB image is almost always a mistake.
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"}
+
+# Mirrors IC-13's frozen ``mixle://schema/spatial-media/1`` schema uri (workstream M / mixle-knowledge). Kept as
+# a local constant rather than a hard dependency: mixle-mlops does not yet declare `mixle_knowledge` as a
+# dependency, so `StructuredMediaRef` carries data shaped to that schema (crs/extent/pixel_to_crs) without
+# importing it — a future knowledge-store integration can wrap `StructuredMediaRef.to_dict()["georef"]`
+# straight into a `SpatialMediaPayload`/`KnowledgeItem` with no reshaping.
+SPATIAL_MEDIA_SCHEMA = "mixle://schema/spatial-media/1"
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[\w.+-]+/[\w.+-]+)?(?P<b64>;base64)?,(?P<payload>.*)$", re.DOTALL)
 _FILE_PATH_RE = re.compile(r"^/v1/files/(?P<id>[\w.-]+?)(?:/content)?$")
@@ -114,3 +136,151 @@ def normalize_messages(
         m.model_copy(update={"content": resolve_content(m.content, store)})
         for m in messages
     ]
+
+
+# --- D5: vision-capability routing -----------------------------------------------------------------------------
+
+
+def has_vision(adapter: ModelAdapter) -> bool:
+    """Whether ``adapter`` advertises image understanding, per its ``capabilities()``."""
+    caps = adapter.capabilities()
+    return "vision" in caps or "image" in caps
+
+
+def select_vision_model(registry: ModelRegistry, requested: str) -> str:
+    """Return ``requested`` if it is registered and vision-capable; else the cheapest registered vision-capable
+    model id; else raise :class:`MultimodalError`.
+
+    "Cheapest" honors an optional ``cost_per_1k_tokens`` (or ``cost``) attribute on an adapter when present —
+    the registry/adapter surface has no frozen pricing field yet, so this is a best-effort, forward-compatible
+    proxy: unpriced adapters sort last and ties break on model id, so the choice is always deterministic.
+    """
+    if requested and registry.has(requested) and has_vision(registry.get(requested)):
+        return requested
+
+    vision_ids = [model_id for model_id in registry.names() if has_vision(registry.get(model_id))]
+    if not vision_ids:
+        raise MultimodalError("request carries an image but no registered model supports vision")
+
+    def _cost(model_id: str) -> tuple[float, str]:
+        adapter = registry.get(model_id)
+        cost = getattr(adapter, "cost_per_1k_tokens", None)
+        if cost is None:
+            cost = getattr(adapter, "cost", None)
+        return (float(cost) if cost is not None else float("inf"), model_id)
+
+    return min(vision_ids, key=_cost)
+
+
+# --- D5: image georeferencing sidecar ---------------------------------------------------------------------------
+
+
+@dataclass
+class GeoRef:
+    """The spatial frame a piece of image content carries: CRS, ground ``extent`` (minx, miny, maxx, maxy),
+    ground-units-per-pixel ``scale``, and (optionally) the full six-term pixel→CRS affine. All fields are
+    plain, JSON-serializable values — a ``GeoRef`` is data, never a handle into process memory."""
+
+    crs: str | None
+    extent: tuple[float, float, float, float] | None
+    scale: float | None
+    pixel_to_crs: tuple[float, float, float, float, float, float] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "crs": self.crs,
+            "extent": list(self.extent) if self.extent is not None else None,
+            "scale": self.scale,
+            "pixel_to_crs": list(self.pixel_to_crs) if self.pixel_to_crs is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "GeoRef":
+        extent = d.get("extent")
+        pixel_to_crs = d.get("pixel_to_crs")
+        return cls(
+            crs=d.get("crs"),
+            extent=tuple(extent) if extent is not None else None,
+            scale=d.get("scale"),
+            pixel_to_crs=tuple(pixel_to_crs) if pixel_to_crs is not None else None,
+        )
+
+
+@dataclass
+class StructuredMediaRef:
+    """A serializable, content-addressed reference to image media: a blob-store ``artifact_ref`` + its
+    ``content_hash`` + an optional ``georef`` spatial frame + free-form ``provenance``. This is what travels in
+    bundles/tool provenance across processes — never a live ``ImagePart``/``id(part)`` handle. An ``ImagePart``
+    is materialized fresh, only at the adapter boundary, via :meth:`to_image_part`."""
+
+    artifact_ref: str
+    content_hash: str
+    media_type: str
+    georef: GeoRef | None
+    provenance: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "artifact_ref": self.artifact_ref,
+            "content_hash": self.content_hash,
+            "media_type": self.media_type,
+            "georef": self.georef.to_dict() if self.georef is not None else None,
+            "provenance": dict(self.provenance),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "StructuredMediaRef":
+        georef = d.get("georef")
+        return cls(
+            artifact_ref=d["artifact_ref"],
+            content_hash=d["content_hash"],
+            media_type=d["media_type"],
+            georef=GeoRef.from_dict(georef) if georef is not None else None,
+            provenance=dict(d.get("provenance") or {}),
+        )
+
+    def to_image_part(self, store: BlobStore) -> ImagePart:
+        """Materialize an ephemeral ``ImagePart`` (an inline ``data:`` URL) at the adapter boundary — the one
+        place a vision backend actually needs bytes. Never cached/keyed by identity; call again to re-resolve."""
+        if not store.has(self.artifact_ref):
+            raise MultimodalError(f"structured media ref {self.artifact_ref!r} not found in store")
+        return ImagePart(image_url={"url": store.data_url(self.artifact_ref)})
+
+
+def attach_georef(media: StructuredMediaRef, geo: GeoRef) -> StructuredMediaRef:
+    """Return a copy of ``media`` with ``geo`` attached. A plain, serializable update — never keys state by
+    ``id(part)``; the returned record is the only handle the caller needs to keep."""
+    return replace(media, georef=geo)
+
+
+def media_ref_from_tile(
+    tile: Any,
+    store: BlobStore,
+    *,
+    crs: str | None = None,
+    pixel_to_crs: tuple[float, ...] | None = None,
+    media_type: str = "image/png",
+    filename: str = "tile.png",
+    provenance: dict[str, Any] | None = None,
+) -> StructuredMediaRef:
+    """Persist one tiled-raster tile's encoded bytes as a blob and wrap it in a :class:`StructuredMediaRef`
+    carrying its spatial frame (D1 ``RasterTile`` → D5 sidecar). Duck-typed on ``tile.png``/``tile.extent``/
+    ``tile.scale`` so it works against D1's ``RasterTile`` (or any tile-shaped object) without importing
+    ``mixle_mlops.multimodal.raster`` here."""
+    data: bytes = tile.png
+    content_hash = hashlib.sha256(data).hexdigest()
+    record = store.put(data, filename=filename, content_type=media_type)
+    extent = getattr(tile, "extent", None)
+    geo = GeoRef(
+        crs=crs,
+        extent=tuple(extent) if extent is not None else None,
+        scale=getattr(tile, "scale", None),
+        pixel_to_crs=tuple(pixel_to_crs) if pixel_to_crs is not None else None,
+    )
+    return StructuredMediaRef(
+        artifact_ref=record.id,
+        content_hash=content_hash,
+        media_type=media_type,
+        georef=geo,
+        provenance=dict(provenance or {}),
+    )
