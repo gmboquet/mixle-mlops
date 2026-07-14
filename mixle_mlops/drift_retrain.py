@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Any
 
 import numpy as np
 
+from mixle.inference.conformal import split_conformal
 from mixle.inference.production import Registry, detect_drift, fit_with_provenance
 from mixle.stats import GaussianDistribution
 
@@ -56,6 +58,38 @@ def main() -> None:
         json.dump(train, fh)
     print(f"drift detected -> retrained, registered {version}, promoted to production")
     print(header)
+
+
+def detect_stream_drift(stream: str, reference: Any, current: Any, *, alpha: float = 0.1) -> dict[str, Any]:
+    """H9 addition: a monitoring-series drift alarm for grade-forecast / demand / throughput streams.
+
+    G7 (`mixle_mlops/monitoring.py` -- `exceedance_alarm` / `monitor_and_maybe_retrain`, built on this
+    same core primitive) had not landed on this branch as of this PR (see the H9 PR body's Notes for the
+    full explanation -- both tasks share Wave 3 and G7 was still in flight). Rather than block H9's
+    `on_drift` on it, this reproduces G7's declared one-sided split-conformal alarm shape directly:
+    calibrate an upper bound from ``reference`` (predicting its own mean) and flag drift when
+    ``current``'s empirical rate of exceeding that bound is itself larger than the nominal false-alarm
+    budget ``alpha`` the bound was built to hold -- the stream is behaving unlike a draw from the
+    reference regime, at a strength past what ``alpha`` alone would produce by chance. This is additive
+    (a new function; ``main``/``_recent_batch`` above are untouched) and is a drop-in call for G7's
+    richer monitoring surface once that lands -- no change to `on_drift`'s call site expected.
+    """
+    ref = np.asarray(reference, dtype=float).ravel()
+    cur = np.asarray(current, dtype=float).ravel()
+    baseline = float(ref.mean()) if ref.size else 0.0
+    _, upper = split_conformal(
+        np.full(ref.shape, baseline), ref, np.full(cur.shape, baseline), alpha=alpha, side="upper"
+    )
+    bound = float(upper[0]) if upper.size else float("inf")
+    exceed_rate = float(np.mean(cur > bound)) if cur.size else 0.0
+    return {
+        "stream": stream,
+        "drift": bool(exceed_rate > alpha),
+        "exceedance_rate": exceed_rate,
+        "bound": bound,
+        "alpha": alpha,
+        "baseline": baseline,
+    }
 
 
 if __name__ == "__main__":
