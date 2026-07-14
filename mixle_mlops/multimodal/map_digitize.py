@@ -1,4 +1,4 @@
-"""I1 -- georeferenced geological-map digitization.
+"""I1 -- georeferenced geological-map digitization; I5 -- drillhole plan/collar/trace extraction.
 
 Turns a scanned/rasterized geological map plus a handful of pixel<->CRS control points into named GeoJSON
 layers (contacts, faults, mapped units, ...) a physics/GIS pipeline can consume. The heavy lifting is:
@@ -21,8 +21,13 @@ layers (contacts, faults, mapped units, ...) a physics/GIS pipeline can consume.
      properties, and a ``derived_from`` relation targets the content-addressed source-image id. A
      ``text_surface`` summary is attached alongside, never inside, that payload.
 
-Crosses the mixle-mlops/mixle-pde repo boundary only as data (GeoJSON), per the B1 (``crs.py``)/B8
-(``io/gis.py``) contracts -- this module does not import ``mixle_pde`` at all, and does not import
+:func:`extract_collars` (I5) is a sibling extractor over the same kind of map: it reuses an already-fitted
+``pixel_to_crs`` affine (rather than fitting its own) to pull drillhole collar markers/hole-id labels and any
+plotted plan-view hole traces into a `DrillholeLayer`, merging repeat VLM detections of one collar within a
+small pixel tolerance before reprojecting. See the "I5" section below for its own docstrings.
+
+Crosses the mixle-mlops/mixle-pde repo boundary only as data (GeoJSON / plain dicts), per the B1 (``crs.py``)/
+B8 (``io/gis.py``) contracts -- this module does not import ``mixle_pde`` at all, and does not import
 ``mixle_knowledge`` either (IC-13's ``KnowledgeItem``/``PropertyGraphPayload`` classes are not yet landed
 there; see the module-level ``PROPERTY_GRAPH_SCHEMA`` note below for the resulting shim).
 """
@@ -31,6 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -336,3 +342,154 @@ def digitize_map(
         pixel_to_crs=pixel_to_crs,
         provenance=provenance,
     )
+
+
+# --- I5: drillhole plan/collar/trace extraction ------------------------------------------------------------------
+#
+# A plan-view geological map often plots drillhole collars (surface entry points, labeled with a hole id and
+# sometimes a collar elevation) and, less often, a plan-projected downhole trace. This reuses I1's already-
+# fitted ``pixel_to_crs`` affine (the caller passes it in -- unlike ``digitize_map``, `extract_collars` does not
+# fit its own control points, matching the pattern I3/I4 use for a downstream extractor over the same map) and
+# emits a `DrillholeLayer` a B8 ``io/gis.py`` writer can persist. pde owns turning a plan-view trace into full
+# 3D downhole survey geometry (desurveying) -- this stays plan-view pixel/CRS geometry only.
+
+
+_COLLAR_MERGE_PIXEL_TOLERANCE = 5.0  # px; VLM re-detections of one collar marker land within this radius
+
+
+@dataclass
+class DrillholeLayer:
+    """Result of :func:`extract_collars`.
+
+    ``collars[i]`` is ``{"hole_id": str, "x": float, "y": float, "z": float}`` in ``crs`` (``z`` is the
+    collar's plotted elevation label, passed through unprojected -- it is not derived from the 2D pixel
+    affine). ``traces[i]`` is ``{"hole_id": str, "coordinates": [[x, y], ...]}``, the plan-projected polyline
+    for that hole in the same ``crs``, when one was plotted on the map.
+    """
+
+    collars: list[dict] = field(default_factory=list)
+    traces: list[dict] = field(default_factory=list)
+    crs: str = ""
+    provenance: dict = field(default_factory=dict)
+
+
+def _query_vlm_collars(tiles: list[bytes], *, vlm: str | None) -> dict[str, list[dict[str, Any]]]:
+    """Prompt a vision-language model for collar markers/hole-id labels and any plotted hole traces; return
+    ``{"collars": [...], "traces": [...]}`` in pixel space, where each collar is
+    ``{"hole_id", "pixel_coords": [[x, y]], "z"}`` (``z`` optional) and each trace is
+    ``{"hole_id", "pixel_coords": [[x, y], ...]}``.
+
+    No live backend is wired at this seam yet, mirroring :func:`_query_vlm` -- tests monkeypatch this function
+    with a recorded or fixture-backed response (see ``tests/fixtures/collars_stub.json``).
+    """
+    raise NotImplementedError(
+        "extract_collars needs a live VLM backend; monkeypatch "
+        "mixle_mlops.multimodal.map_digitize._query_vlm_collars (or wire a real model call here) to supply "
+        "pixel-space collar/trace detections."
+    )
+
+
+def _collar_pixel_point(raw: dict[str, Any]) -> tuple[float, float]:
+    pixel_coords = raw.get("pixel_coords") or []
+    if not pixel_coords:
+        raise MapDigitizationError("collar detection missing pixel_coords")
+    x, y = pixel_coords[0]
+    return float(x), float(y)
+
+
+def _cluster_by_pixel_tolerance(points: list[tuple[float, float]], tolerance: float) -> list[list[int]]:
+    """Greedy single-linkage clustering of pixel points: a point joins the first existing cluster within
+    ``tolerance`` px of that cluster's seed point, else it starts a new cluster. Used to merge repeat VLM
+    detections of the same physical collar marker without silently collapsing genuinely distinct ones."""
+    clusters: list[list[int]] = []
+    for idx, point in enumerate(points):
+        for cluster in clusters:
+            seed = points[cluster[0]]
+            if math.hypot(point[0] - seed[0], point[1] - seed[1]) <= tolerance:
+                cluster.append(idx)
+                break
+        else:
+            clusters.append([idx])
+    return clusters
+
+
+def _dedupe_and_reproject_collars(
+    raw_collars: list[dict[str, Any]], pixel_to_crs: tuple[float, ...]
+) -> list[dict[str, Any]]:
+    """Group raw pixel-space collar detections by ``hole_id``, merge near-duplicate detections (nearest-merge
+    within :data:`_COLLAR_MERGE_PIXEL_TOLERANCE` px) by averaging their pixel position, then reproject each
+    merged collar through ``pixel_to_crs`` into ``{hole_id, x, y, z}``."""
+    by_hole: dict[str, list[dict[str, Any]]] = {}
+    for raw in raw_collars:
+        hole_id = raw.get("hole_id")
+        if not hole_id:
+            continue
+        by_hole.setdefault(hole_id, []).append(raw)
+
+    collars: list[dict[str, Any]] = []
+    for hole_id, detections in by_hole.items():
+        points = [_collar_pixel_point(d) for d in detections]
+        for cluster in _cluster_by_pixel_tolerance(points, _COLLAR_MERGE_PIXEL_TOLERANCE):
+            cluster_points = [points[i] for i in cluster]
+            cx = sum(p[0] for p in cluster_points) / len(cluster_points)
+            cy = sum(p[1] for p in cluster_points) / len(cluster_points)
+            x, y = _apply_affine(pixel_to_crs, cx, cy)
+            z_values = [detections[i].get("z") for i in cluster if detections[i].get("z") is not None]
+            collars.append(
+                {
+                    "hole_id": hole_id,
+                    "x": x,
+                    "y": y,
+                    "z": float(z_values[0]) if z_values else 0.0,
+                }
+            )
+    return collars
+
+
+def _reproject_traces(raw_traces: list[dict[str, Any]], pixel_to_crs: tuple[float, ...]) -> list[dict[str, Any]]:
+    """Reproject each plan-view drillhole trace's pixel polyline into ``{hole_id, coordinates}``; a trace
+    missing a ``hole_id`` or with fewer than two vertices is dropped rather than emitted degenerate."""
+    traces: list[dict[str, Any]] = []
+    for raw in raw_traces:
+        hole_id = raw.get("hole_id")
+        pixel_coords = raw.get("pixel_coords") or []
+        if not hole_id or len(pixel_coords) < 2:
+            continue
+        coordinates = [list(_apply_affine(pixel_to_crs, x, y)) for x, y in pixel_coords]
+        traces.append({"hole_id": hole_id, "coordinates": coordinates})
+    return traces
+
+
+def extract_collars(
+    image_ref: str,
+    *,
+    pixel_to_crs: tuple[float, ...],
+    crs: str,
+    vlm: str | None = None,
+    store: BlobStore | None = None,
+) -> DrillholeLayer:
+    """Extract drillhole collars (and any plotted plan-view traces) from a georeferenced map image.
+
+    ``pixel_to_crs`` is the already-fitted six-term affine from :func:`digitize_map` (or an equivalent I6
+    georeferencing pass) -- this function reprojects but does not itself fit an affine. ``crs`` follows IC-4's
+    ``Observation.crs`` convention. Collars are de-duplicated by ``hole_id``, merging repeat VLM detections
+    that land within a small pixel tolerance of each other.
+    """
+    store = store or get_blob_store()
+    record, data = store.get(image_ref)
+    content_hash = hashlib.sha256(data).hexdigest()
+    tiles = _load_tiles(data, record.content_type)
+
+    raw = _query_vlm_collars(tiles, vlm=vlm)
+    collars = _dedupe_and_reproject_collars(raw.get("collars") or [], pixel_to_crs)
+    traces = _reproject_traces(raw.get("traces") or [], pixel_to_crs)
+
+    provenance = {
+        "vlm": vlm,
+        "image_content_hash": content_hash,
+        "n_collars": len(collars),
+        "image_ref": image_ref,
+        "crs": crs,
+    }
+
+    return DrillholeLayer(collars=collars, traces=traces, crs=crs, provenance=provenance)
