@@ -99,10 +99,30 @@ class Usage(BaseModel):
     total_tokens: int = 0
 
 
+class DecisionQuantity(BaseModel):
+    """A calibrated decision quantity a served turn surfaced (F4, work-plan §5). Distributions, not
+    points: ``ci``/``level`` are the credible interval the value was drawn from, ``prior_dominated``
+    is the IC-1/IC-8 honesty flag (never omitted for a physics/decision tool result), and
+    ``receipt_ref``/``knowledge_item_id``/``bundle_id``/``bundle_revision`` are content-hashed lineage
+    handles (E7/IC-5, M1c/IC-13) a caller can hydrate back into the full posterior/UQ instead of
+    trusting the displayed scalar as the canonical record."""
+    name: str
+    value: float
+    ci: tuple[float, float]
+    level: float = 0.9
+    prior_dominated: bool = False
+    units: str = ""
+    receipt_ref: str | None = None                # content-hashed lineage (E7/IC-5)
+    knowledge_item_id: str | None = None
+    bundle_id: str | None = None
+    bundle_revision: int | None = None
+
+
 class ChatChoice(BaseModel):
     index: int = 0
     message: ChatMessage
     finish_reason: str | None = "stop"
+    decisions: list[DecisionQuantity] = Field(default_factory=list)   # additive; empty for non-decision turns
 
 
 class ChatCompletion(BaseModel):
