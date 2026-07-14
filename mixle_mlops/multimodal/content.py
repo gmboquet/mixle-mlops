@@ -35,7 +35,11 @@ from .store import BlobStore, get_blob_store
 
 # Reasonable defaults; a vision request with a 30 MB image is almost always a mistake.
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
-ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"}
+# Tiled rasters (GeoTIFF uploads) are legitimately large before a model ever sees them — multimodal.raster
+# decimates + windows them into MAX_IMAGE_BYTES-sized PNG tiles before anything reaches a vision backend, so
+# the *upload* ceiling for that one mime type needs to be far higher than a normal photo's.
+MAX_RASTER_BYTES = 512 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/tiff"}
 
 # Mirrors IC-13's frozen ``mixle://schema/spatial-media/1`` schema uri (workstream M / mixle-knowledge). Kept as
 # a local constant rather than a hard dependency: mixle-mlops does not yet declare `mixle_knowledge` as a
@@ -59,12 +63,17 @@ def _blob_id_from_url(url: str) -> str | None:
 
 
 def guard_image(*, content_type: str, size: int) -> None:
-    """Reject oversize or unsupported-mime images. Raises :class:`MultimodalError`."""
-    if size > MAX_IMAGE_BYTES:
-        raise MultimodalError(f"image is {size} bytes; max is {MAX_IMAGE_BYTES}")
+    """Reject oversize or unsupported-mime images. Raises :class:`MultimodalError`.
+
+    Tiled rasters (``image/tiff``) get a much higher byte ceiling than ordinary photos — the raw upload is
+    never shown to a model as-is, it's windowed into small PNG tiles by :mod:`multimodal.raster` first.
+    """
     mime = content_type.split(";", 1)[0].strip().lower()
     if mime not in ALLOWED_IMAGE_TYPES:
         raise MultimodalError(f"unsupported image type {mime!r}; allowed: {sorted(ALLOWED_IMAGE_TYPES)}")
+    ceiling = MAX_RASTER_BYTES if mime == "image/tiff" else MAX_IMAGE_BYTES
+    if size > ceiling:
+        raise MultimodalError(f"image is {size} bytes; max is {ceiling}")
 
 
 def _guard_data_url(url: str) -> None:
@@ -109,9 +118,7 @@ def _resolve_image_part(part: ImagePart, store: BlobStore) -> ImagePart:
     raise MultimodalError("image part has neither a file id nor a url")
 
 
-def resolve_content(
-    content: str | list[ContentPart], store: BlobStore | None = None
-) -> str | list[ContentPart]:
+def resolve_content(content: str | list[ContentPart], store: BlobStore | None = None) -> str | list[ContentPart]:
     """Resolve every image part of one message's content into a self-contained ``image_url`` part."""
     if isinstance(content, str):
         return content
@@ -127,9 +134,7 @@ def resolve_content(
     return out
 
 
-def normalize_messages(
-    messages: list[ChatMessage], store: BlobStore | None = None
-) -> list[ChatMessage]:
+def normalize_messages(messages: list[ChatMessage], store: BlobStore | None = None) -> list[ChatMessage]:
     """Return new messages with all image parts resolved to backend-ready ``image_url`` parts."""
     store = store or get_blob_store()
     return [
