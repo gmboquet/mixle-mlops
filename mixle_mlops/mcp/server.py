@@ -149,9 +149,11 @@ def _list_models_tool(registry: ModelRegistry) -> Tool:
     )
 
 
-def build_model_tools(registry: ModelRegistry) -> dict[str, Tool]:
+def build_model_tools(registry: ModelRegistry, *, include_physics: bool = True) -> dict[str, Tool]:
     """Build the tool catalog from a registry: ``list_models`` + a ``chat__`` tool per model (+ ``score__`` for
-    models advertising the ``score`` capability)."""
+    models advertising the ``score`` capability), plus the physics tools (E4, IC-3) unless ``include_physics``
+    is ``False``. Physics tools are merged in only when ``mixle_pde`` is installed (see
+    :func:`mixle_mlops.mcp.physics_tools.build_physics_tools`); their absence never breaks this catalog."""
     tools: dict[str, Tool] = {}
     lm = _list_models_tool(registry)
     tools[lm.name] = lm
@@ -161,6 +163,10 @@ def build_model_tools(registry: ModelRegistry) -> dict[str, Tool]:
         if "score" in info.capabilities:
             sc = _score_tool(registry, info.id)
             tools[sc.name] = sc
+    if include_physics:
+        from .physics_tools import build_physics_tools
+
+        tools.update(build_physics_tools())
     return tools
 
 
@@ -232,6 +238,11 @@ class MCPServer:
         except Exception as exc:
             # MCP convention: tool execution failures are reported in-band with isError, not as a protocol error
             return {"content": [{"type": "text", "text": str(exc)}], "isError": True}
+        # most handlers return text already; the physics tools (E4) return a JSON-able dict directly so
+        # ToolRegistry.dispatch can hand callers structured data (e.g. the `prior_dominated` flag) without a
+        # round-trip through json.loads — encode it here for the wire protocol, which is text-only.
+        if not isinstance(text, str):
+            text = json.dumps(text)
         return {"content": [{"type": "text", "text": text}], "isError": False}
 
     @staticmethod

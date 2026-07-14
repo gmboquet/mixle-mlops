@@ -26,6 +26,7 @@ from mixle.task.replay import TraceStep
 
 from ..core.adapters import FunctionDef, ToolDef
 from ..core.registry import ModelRegistry
+from ..mcp.physics_tools import build_physics_tools
 from ..mcp.schema_bridge import mcp_tool_to_tooldef
 from ..mcp.server import build_model_tools
 from .trace_capture import record_tool_call
@@ -47,7 +48,7 @@ class ToolRegistry:
     def __init__(self, registry: ModelRegistry, *, user_id: str | None = None,
                  names: list[str] | None = None, include_mcp: bool = True,
                  include_rag: bool = True, include_mixle: bool = True,
-                 include_platform: bool = True, substrate: Any = None,
+                 include_platform: bool = True, include_physics: bool = True, substrate: Any = None,
                  model_id: str | None = None, verifier: Any = None,
                  field_store: FieldStoreLike | None = None):
         self.registry = registry
@@ -61,7 +62,7 @@ class ToolRegistry:
         self._field_store = field_store   # optional SpatialFieldStore (or factory) federated into rag_search (E8)
         self._defs: dict[str, ToolDef] = {}
         self._handlers: dict[str, Handler] = {}
-        self._build(include_mcp, include_rag, include_mixle, include_platform)
+        self._build(include_mcp, include_rag, include_mixle, include_platform, include_physics)
 
     # --- assembly ---
     def _add(self, tooldef: ToolDef, handler: Handler) -> None:
@@ -71,10 +72,16 @@ class ToolRegistry:
         self._defs[name] = tooldef
         self._handlers[name] = handler
 
-    def _build(self, include_mcp: bool, include_rag: bool, include_mixle: bool, include_platform: bool = True) -> None:
+    def _build(self, include_mcp: bool, include_rag: bool, include_mixle: bool, include_platform: bool = True,
+               include_physics: bool = True) -> None:
         if include_mcp:
-            for tool in build_model_tools(self.registry).values():
+            # physics tools (E4) are added separately below, gated by their own flag, so the two are independent
+            # (e.g. include_mcp=False, include_physics=True exposes only the physics tools).
+            for tool in build_model_tools(self.registry, include_physics=False).values():
                 self._add(mcp_tool_to_tooldef(tool), tool.handler)   # MCP handler(args) -> awaitable[str]
+        if include_physics:
+            for tool in build_physics_tools().values():
+                self._add(mcp_tool_to_tooldef(tool), tool.handler)
         if include_rag and self.user_id:
             self._add(
                 ToolDef(function=FunctionDef(
