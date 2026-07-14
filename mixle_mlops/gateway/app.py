@@ -29,6 +29,7 @@ from .routes import (
     files,
     fine_tunes,
     images,
+    interpret,
     mcp,
     mixle,
     models,
@@ -164,6 +165,7 @@ def create_app() -> FastAPI:
     app.include_router(route.router, prefix="/v1", tags=["routes"])       # /v1/routes/* (calibrated N-tier model routing)
     app.include_router(agentic.router, prefix="/v1", tags=["agentic"])    # /v1/toolcallers/* + /v1/planners/* (distilled agent students)
     app.include_router(solutions.router, prefix="/v1", tags=["solutions"])  # /v1/solutions/* (every solve shape, kind-sniffed)
+    app.include_router(interpret.router, prefix="/v1", tags=["interpret"])  # /v1/interpret (posterior -> claim/abstain)
     return app
 
 
