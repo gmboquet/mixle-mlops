@@ -1,4 +1,5 @@
-"""I1 -- georeferenced geological-map digitization; I5 -- drillhole plan/collar/trace extraction.
+"""I1 -- georeferenced geological-map digitization; I3 -- legend / symbol / annotation parsing; I5 --
+drillhole plan/collar/trace extraction.
 
 Turns a scanned/rasterized geological map plus a handful of pixel<->CRS control points into named GeoJSON
 layers (contacts, faults, mapped units, ...) a physics/GIS pipeline can consume. The heavy lifting is:
@@ -20,6 +21,20 @@ layers (contacts, faults, mapped units, ...) a physics/GIS pipeline can consume.
      item under ``provenance["knowledge_item"]``: its ``payload`` retains every Feature's exact id/geometry/
      properties, and a ``derived_from`` relation targets the content-addressed source-image id. A
      ``text_surface`` summary is attached alongside, never inside, that payload.
+
+I3 -- legend / symbol / annotation parsing -- adds two more functions on top of the above, without touching
+any of I1's existing logic:
+
+  * :func:`parse_legend` reads a map's legend box (``{swatch_color: unit_name}``), any borehole/strike-dip
+    symbol glyphs, and the scale bar, through the same VLM-seam pattern as :func:`_query_vlm` (see
+    :func:`_query_legend_vlm`).
+  * :func:`apply_legend` binds each digitized polygon's dominant swatch color to the nearest legend unit
+    (RGB L2) and, when the legend read a scale bar, cross-checks it against the digitization's own
+    control-point affine, recording the comparison in provenance rather than raising -- a soft cross-check,
+    not a georef-quality gate (that hard-fail behavior belongs to I6's ``georeference``).
+  * ``digitize_map`` gained one optional keyword, ``legend: bool = False``: when set, it runs the same image
+    through :func:`parse_legend` and folds the result in via :func:`apply_legend` before returning. This is
+    a small, additive post-pass -- the rest of the function body is unchanged from I1.
 
 :func:`extract_collars` (I5) is a sibling extractor over the same kind of map: it reuses an already-fitted
 ``pixel_to_crs`` affine (rather than fitting its own) to pull drillhole collar markers/hole-id labels and any
@@ -44,6 +59,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from ..config import get_settings
 from .store import BlobStore, get_blob_store
 
 # Mirrors IC-13's frozen `mixle://schema/property-graph/1` constant (mixle-knowledge/contracts.py, workstream
@@ -292,13 +308,16 @@ def digitize_map(
     layers: tuple[str, ...] = ("contact", "fault", "unit"),
     vlm: str | None = None,
     store: BlobStore | None = None,
+    legend: bool = False,
 ) -> MapDigitization:
     """Digitize a georeferenced geological map into named GeoJSON layers.
 
     ``image_ref`` is a content-addressed :class:`BlobStore` handle (an IC-3-style ``*_ref`` artifact id, see
     the module docstring). ``control_points`` are ``(pixel_x, pixel_y, crs_x, crs_y)`` ground-control tuples
     used to fit the pixel->CRS affine (at least three required). ``crs`` follows IC-4's ``Observation.crs``
-    convention (an EPSG/PROJ string).
+    convention (an EPSG/PROJ string). ``legend=True`` runs the I3 post-pass (:func:`parse_legend` +
+    :func:`apply_legend`) on the same image before returning, binding each digitized polygon to a named
+    legend unit.
     """
     store = store or get_blob_store()
     record, data = store.get(image_ref)
@@ -336,10 +355,175 @@ def digitize_map(
         "knowledge_item": knowledge_item,
     }
 
-    return MapDigitization(
+    result = MapDigitization(
         layers=layers_geojson,
         crs=crs,
         pixel_to_crs=pixel_to_crs,
+        provenance=provenance,
+    )
+
+    if legend:
+        result = apply_legend(result, parse_legend(image_ref, store=store))
+
+    return result
+
+
+# --- I3: legend / symbol / annotation parsing ----------------------------------------------------------------
+
+
+@dataclass
+class LegendMap:
+    """Result of :func:`parse_legend`.
+
+    ``units`` maps a legend swatch's dominant color (a ``"#RRGGBB"`` hex string -- the "swatch label" the
+    legend key is read by) to the semantic unit name it labels (e.g. ``"#4a7d3c": "Qal"``); :func:`apply_legend`
+    matches each digitized polygon's own dominant color against these swatches by RGB L2 distance. ``symbols``
+    maps a recognized glyph name to its semantic type (e.g. ``"circle-open": "borehole"``,
+    ``"tick-strike": "strike_dip"``) -- read but not otherwise interpreted here (no new symbol taxonomy beyond
+    what the legend itself defines). ``scale_m_per_px`` is ``None`` when no scale bar was found/read.
+    """
+
+    units: dict[str, str] = field(default_factory=dict)
+    symbols: dict[str, str] = field(default_factory=dict)
+    scale_m_per_px: float | None = None
+    provenance: dict = field(default_factory=dict)
+
+
+def _query_legend_vlm(tiles: list[bytes], *, vlm: str | None) -> dict[str, Any]:
+    """Prompt a vision-language model to read the legend box, symbol glyphs, and scale bar; return
+    ``{"units": {swatch_color: unit_name, ...}, "symbols": {glyph: semantic_type, ...},
+    "scale_m_per_px": float | None}``.
+
+    Same seam pattern as :func:`_query_vlm`: no live backend is wired here yet. Tests monkeypatch this
+    function with a recorded/stubbed response (see ``tests/fixtures/legend_stub.json``).
+    """
+    raise NotImplementedError(
+        "parse_legend needs a live VLM backend; monkeypatch "
+        "mixle_mlops.multimodal.map_digitize._query_legend_vlm (or wire a real model call here) to supply "
+        "the legend/symbol/scale-bar reading."
+    )
+
+
+def parse_legend(image_ref: str, *, store: BlobStore | None = None) -> LegendMap:
+    """Read a map's legend box, symbol glyphs, and scale bar into a :class:`LegendMap`.
+
+    ``image_ref`` is the same kind of content-addressed :class:`BlobStore` handle :func:`digitize_map` takes
+    (usually the same map image). The VLM model id used is the platform's configured default model
+    (``Settings.default_model``) -- unlike :func:`digitize_map`, this signature takes no ``vlm`` override, so
+    provenance records whichever default was active when the legend was read.
+    """
+    store = store or get_blob_store()
+    record, data = store.get(image_ref)
+    content_hash = hashlib.sha256(data).hexdigest()
+    tiles = _load_tiles(data, record.content_type)
+
+    vlm = get_settings().default_model
+    raw = _query_legend_vlm(tiles, vlm=vlm)
+
+    units = {str(k): str(v) for k, v in dict(raw.get("units") or {}).items()}
+    symbols = {str(k): str(v) for k, v in dict(raw.get("symbols") or {}).items()}
+    raw_scale = raw.get("scale_m_per_px")
+    scale_m_per_px = float(raw_scale) if raw_scale is not None else None
+
+    provenance = {
+        "vlm": vlm,
+        "image_content_hash": content_hash,
+        "n_units": len(units),
+        "scale_source": "legend_scale_bar" if scale_m_per_px is not None else None,
+    }
+    return LegendMap(units=units, symbols=symbols, scale_m_per_px=scale_m_per_px, provenance=provenance)
+
+
+def _hex_to_rgb(color: str) -> tuple[float, float, float] | None:
+    """Parse a ``"#RRGGBB"`` (or ``"RRGGBB"``) string into an ``(r, g, b)`` triple; ``None`` if unparseable."""
+    text = color.strip().lstrip("#")
+    if len(text) != 6:
+        return None
+    try:
+        return tuple(float(int(text[i : i + 2], 16)) for i in (0, 2, 4))
+    except ValueError:
+        return None
+
+
+def _nearest_unit(color: str, units: dict[str, str]) -> str | None:
+    """The unit name of the legend swatch nearest ``color`` by RGB L2 distance; ``None`` if neither the
+    polygon color nor any swatch color is parseable."""
+    target = _hex_to_rgb(color)
+    if target is None:
+        return None
+    best_name: str | None = None
+    best_dist: float | None = None
+    for swatch_color, unit_name in units.items():
+        swatch_rgb = _hex_to_rgb(swatch_color)
+        if swatch_rgb is None:
+            continue
+        dist = sum((t - s) ** 2 for t, s in zip(target, swatch_rgb))
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_name = unit_name
+    return best_name
+
+
+def _affine_scale_m_per_px(pixel_to_crs: tuple[float, ...]) -> float | None:
+    """The ground scale (meters per pixel) implied by a fitted ``pixel_to_crs`` affine: the average length,
+    in CRS units, of the two pixel-axis step vectors ``(a, d)`` and ``(b, e)`` -- exact for an axis-aligned or
+    uniformly-rotated raster with square pixels."""
+    if len(pixel_to_crs) != 6:
+        return None
+    a, b, _c, d, e, _f = pixel_to_crs
+    return (math.hypot(a, d) + math.hypot(b, e)) / 2.0
+
+
+def apply_legend(dig: MapDigitization, legend: LegendMap) -> MapDigitization:
+    """Bind each digitized polygon's dominant swatch color to its nearest legend unit (RGB L2), and, when the
+    legend read a scale bar, cross-check it against ``dig``'s own control-point affine.
+
+    A polygon `Feature` gains ``properties["unit"]`` when its properties already carry a ``"color"`` string
+    (the dominant swatch color the digitization step read off the map) and the legend has at least one usable
+    swatch; features without a ``"color"`` property, or non-polygon features, pass through unchanged. The
+    scale cross-check is recorded under ``provenance["legend"]["scale_check"]`` -- a soft comparison (the
+    ratio of the legend-read scale to the affine-implied one); it never raises (I6's ``georeference`` owns
+    hard-failing a bad georeference). Returns a new :class:`MapDigitization`; neither input is mutated.
+    """
+    new_layers: dict[str, dict] = {}
+    n_bound = 0
+    for layer_name, feature_collection in dig.layers.items():
+        features: list[dict[str, Any]] = []
+        for raw_feature in feature_collection.get("features", []):
+            properties = dict(raw_feature.get("properties") or {})
+            geometry = raw_feature.get("geometry") or {}
+            color = properties.get("color")
+            if geometry.get("type") == "Polygon" and legend.units and isinstance(color, str):
+                unit_name = _nearest_unit(color, legend.units)
+                if unit_name is not None:
+                    properties["unit"] = unit_name
+                    n_bound += 1
+            features.append({**raw_feature, "properties": properties})
+        new_layers[layer_name] = {
+            "type": feature_collection.get("type", "FeatureCollection"),
+            "features": features,
+        }
+
+    scale_check: dict[str, Any] | None = None
+    if legend.scale_m_per_px is not None:
+        affine_scale = _affine_scale_m_per_px(dig.pixel_to_crs)
+        scale_check = {
+            "legend_scale_m_per_px": legend.scale_m_per_px,
+            "affine_scale_m_per_px": affine_scale,
+            "ratio": (legend.scale_m_per_px / affine_scale) if affine_scale else None,
+        }
+
+    provenance = dict(dig.provenance)
+    provenance["legend"] = {
+        **legend.provenance,
+        "n_units_bound": n_bound,
+        "scale_check": scale_check,
+    }
+
+    return MapDigitization(
+        layers=new_layers,
+        crs=dig.crs,
+        pixel_to_crs=dig.pixel_to_crs,
         provenance=provenance,
     )
 

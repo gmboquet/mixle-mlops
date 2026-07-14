@@ -1,0 +1,12 @@
+{
+  "units": {
+    "#4a7d3c": "Qal",
+    "#c9a227": "Tv",
+    "#8899aa": "Kgd"
+  },
+  "symbols": {
+    "circle-open": "borehole",
+    "tick-strike": "strike_dip"
+  },
+  "scale_m_per_px": 1.02
+}
