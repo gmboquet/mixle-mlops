@@ -131,12 +131,28 @@ async def chat_completions(req: ChatRequest, request: Request, response: Respons
         req.model = name
         response.headers["X-Vision-Model"] = name
 
-    # 3. RAG: augment with retrieved context from this user's past conversations + documents (opt-in via extra.rag)
+    # 3. RAG: augment with retrieved context from this user's past conversations + documents (opt-in via extra.rag).
+    #    extra.knowledge_mode="structured" (M1c, IC-13) composes through the federated KnowledgeBundle renderer
+    #    -- mixed messages + resource descriptors, target-capability-aware -- instead of one flat context
+    #    string; the source bundle id is recorded on the response so a caller can chain a handoff onto it.
+    #    Default stays "legacy_text" (unchanged behavior) until the platform-wide migration lands.
     if user is not None and req.extra.get("rag"):
+        knowledge_mode = req.extra.get("knowledge_mode", "legacy_text")
         try:
-            from ...rag.augment import build_rag_messages
+            if knowledge_mode == "structured":
+                from ...rag.augment import build_structured_rag_messages
 
-            req.messages = build_rag_messages(user.id, req.messages)
+                result = build_structured_rag_messages(
+                    user.id, req.messages, capabilities=adapter.capabilities(), target_model=name,
+                )
+                req.messages = result.messages
+                if result.bundle_id:
+                    response.headers["X-Knowledge-Bundle-Id"] = result.bundle_id
+                    response.headers["X-Knowledge-Bundle-Revision"] = str(result.bundle_revision)
+            else:
+                from ...rag.augment import build_rag_messages
+
+                req.messages = build_rag_messages(user.id, req.messages)
         except Exception:
             pass
 
