@@ -21,6 +21,7 @@ from ...core.adapters import (
 )
 from ...multimodal.content import MultimodalError, has_vision, normalize_messages, select_vision_model
 from ..auth import current_user
+from ..decision_surfacing import surface_decisions
 
 router = APIRouter()
 
@@ -153,6 +154,10 @@ async def chat_completions(req: ChatRequest, request: Request, response: Respons
         if req.stream:
             async def agent_stream():
                 completion = await run_agent_loop(adapter, req, tool_reg, max_iters=max_iters)
+                if completion.choices:
+                    # F4: surface any decision-quantity tool result this turn dispatched, gating the
+                    # streamed text through it (prior-dominated -> calibrated abstain, never a bare number).
+                    surface_decisions(completion.choices[0], tool_reg.trace_steps)
                 text = completion.choices[0].message.text() if completion.choices else ""
                 chunk = ChatCompletionChunk(model=name, choices=[ChatChunkChoice(
                     index=0, delta=ChoiceDelta(role="assistant", content=text), finish_reason="stop")])
@@ -166,6 +171,12 @@ async def chat_completions(req: ChatRequest, request: Request, response: Respons
             return StreamingResponse(agent_stream(), media_type="text/event-stream",
                                      headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
         completion = await run_agent_loop(adapter, req, tool_reg, max_iters=max_iters)
+        if completion.choices:
+            # F4: surface any decision-quantity tool result this turn dispatched (query_posterior /
+            # IC-8 region_mass / prob_exceed / ...) into `choice.decisions`, gating the served text
+            # through the honesty flag -- a prior-dominated decision never reaches the driller as a
+            # bare point estimate.
+            surface_decisions(completion.choices[0], tool_reg.trace_steps)
         answer_text = completion.choices[0].message.text() if completion.choices else ""
         _persist_trace(tool_reg, question, name, answer_text, stopped_reason="agent")
         cid = _persist(user, req, name, answer_text)
