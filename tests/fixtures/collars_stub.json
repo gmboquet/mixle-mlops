@@ -1,0 +1,12 @@
+{
+  "collars": [
+    {"hole_id": "DDH-01", "pixel_coords": [[20, 20]], "z": 1250.0},
+    {"hole_id": "DDH-01", "pixel_coords": [[21, 19]], "z": 1250.0},
+    {"hole_id": "DDH-02", "pixel_coords": [[60, 30]], "z": 1180.0},
+    {"hole_id": "DDH-03", "pixel_coords": [[40, 70]], "z": 1300.0}
+  ],
+  "traces": [
+    {"hole_id": "DDH-01", "pixel_coords": [[20, 20], [25, 40]]},
+    {"hole_id": "DDH-02", "pixel_coords": [[60, 30], [65, 55]]}
+  ]
+}
