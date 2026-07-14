@@ -6,8 +6,10 @@ multimodal, RAG, an MCP server, tool calling + a server-side agentic loop, and t
 than an LLM proxy: a **probabilistic-bridge stack** that lifts a laptop-sized model toward frontier quality, and
 **self-evolution** that improves served models from their own usage.
 
-It runs end-to-end on a laptop (SQLite + filesystem + a local Ollama) and scales to the cloud (Postgres + object
-store + Redis) by changing config — no code change. Local-first, cloud-optional.
+It runs end-to-end on a laptop (SQLite + filesystem + a local Ollama) and scales to Postgres + object store +
+Redis via config; the cloud blob backend (`S3BlobStore`) is a roadmap item (D4) — until it lands, cloud
+multimodal/RAG upload is not wired. <!-- re-expand when D4/D2 land --> Local-first today; the database and
+cache legs of "cloud" are config-only, the blob-storage leg isn't yet.
 
 ```sh
 cp deploy/.env.example deploy/.env          # set MIXLE_SECRET_KEY
@@ -25,12 +27,26 @@ curl localhost:8000/v1/models               # OpenAI-compatible
 | **Host mixle models** with a real probabilistic surface | `POST /v1/mixle/{predict,score,latent,decide}` |
 | **Tool calling + server-side agent loop** (executes MCP tools, RAG, mixle decide/predict, exact compute) | `extra.agent`, `/mcp` |
 | **Accounts, API keys, OAuth** (Sign in with Google/Apple) | `/auth/*`, `mk-…` keys |
-| **Multimodal** (image inputs), **RAG** (PDF/DOCX/PPTX upload + retrieval), **image gen**, **dataset gen** | `/v1/files`, `/v1/documents`, `/v1/rag/search`, `/v1/images/generations`, `/v1/datasets` |
+| **Multimodal** (image inputs, local blob store only — cloud blob backend is roadmap D4), **RAG** (text-layer PDF/DOCX/PPTX + plaintext/markdown retrieval today, needs the `documents` extra — not installed by base; OCR/scanned-PDF/table/LAS parsing is roadmap D2), **image gen**, **dataset gen** <!-- re-expand when D4/D2 land --> | `/v1/files`, `/v1/documents`, `/v1/rag/search`, `/v1/images/generations`, `/v1/datasets` |
 | **Conversations** (persisted threads + json/markdown/pdf export) | `/v1/conversations` |
 | **Caching + rate limiting** (memory / Redis), **MCP server** | `extra` flags, `MIXLE_REDIS_URL`, `/mcp` |
 | **Chat UI** (Next.js, Claude/ChatGPT-like) | `frontend/` |
 | **Multi-cloud deploy** (AWS/Azure/GCP/Alicloud) | Helm chart + Terraform + `mixle-mlops init-cloud` |
 | **Universal cloud compute** (GPU VMs, marketplaces, managed k8s, on-prem) | Any OpenAI-compatible endpoint + generic Docker/Kubernetes GPU recipes |
+
+### Delivered vs roadmap
+
+Every headline above maps to shipped code or an explicit task ID — nothing here is aspirational:
+
+| Claim | Status |
+|---|---|
+| Chat/model serving, accounts + API keys + OAuth, tool calling + agent loop, caching/rate limiting, MCP server, chat UI, conversations export | shipped |
+| Cloud config for database (Postgres) + cache (Redis); multi-cloud Helm/Terraform; universal cloud compute (any OpenAI-compatible endpoint) | shipped |
+| Cloud blob backend (`S3BlobStore`, needed for multimodal/RAG upload under a cloud deployment) | roadmap — D4 |
+| RAG: text-layer PDF/DOCX/PPTX + plaintext/markdown retrieval (requires the `documents` extra) | shipped |
+| RAG: OCR/scanned-PDF, table extraction, LAS, page-level provenance | roadmap — D2 |
+
+<!-- re-expand when D4/D2 land -->
 
 ## The mixle bridge — frontier quality on a laptop
 
@@ -60,6 +76,8 @@ verifiably and non-regressively beats the champion** (built on `mixle.evolve`):
 
 ```sh
 pip install -e ".[dev]"                      # + extras: documents, scale, datasets, export, cloud, mcp, all
+                                              # documents = text-layer PDF/DOCX/PPTX RAG upload (not in base);
+                                              # OCR/scanned-PDF/table/LAS parsing isn't in any extra yet (roadmap D2)
 pytest -q                                    # the full suite
 ruff check mixle_mlops tests
 mixle-mlops create-user you@example.com pw --admin   # a user + an API key
