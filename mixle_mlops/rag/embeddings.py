@@ -1,16 +1,22 @@
-"""Text → vector embeddings.
+"""Text → vector embeddings, plus a lexical (BM25) scorer for hybrid dense+lexical retrieval.
 
-The primary backend is an **OpenAI-compatible** ``/v1/embeddings`` server (the same backend the LLM/embeddings/
+The primary dense backend is an **OpenAI-compatible** ``/v1/embeddings`` server (the same backend the LLM/embeddings/
 image proxy points at — ``get_settings().llm_base_url`` / ``llm_api_key``). When no server is reachable (offline,
 tests, CI) we fall back to a **deterministic local hashing embedder**: a fixed feature-hashing of character
 n-grams into a unit-normalised vector. The fallback is stable across runs and processes, so identical text always
 maps to an identical vector and cosine similarity is meaningful for retrieval tests — no server required.
 
 ``Embedder.embed(texts) -> np.ndarray`` of shape ``(len(texts), dim)``, L2-normalised rows.
+
+``Bm25Index`` is the lexical half of hybrid search (:func:`mixle_mlops.rag.index.retrieve`, ``hybrid=True``):
+dense embeddings blur rare, exact terms (formation names, sample ids, curve mnemonics) into their neighbourhood,
+while Okapi BM25 up-weights precisely the terms an embedding averages away.
 """
 from __future__ import annotations
 
 import hashlib
+import math
+import re
 from typing import Sequence
 
 import numpy as np
@@ -137,6 +143,74 @@ class Embedder:
     def embed_one(self, text: str) -> np.ndarray:
         """Embed a single string → 1-D vector of length ``dim``."""
         return self.embed([text])[0]
+
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+class Bm25Index:
+    """Okapi BM25 lexical scorer over a fixed candidate corpus (the dense-retrieved pool, not the whole store).
+
+    ``fit(texts)`` builds per-document term frequencies plus corpus document-frequencies/length statistics;
+    ``score(query)`` returns one BM25 score per fitted document, in the same order they were fit. Deliberately
+    dependency-free (stdlib tokenising + numpy) so hybrid search needs nothing beyond what ``Embedder`` already
+    requires.
+    """
+
+    def __init__(self, *, k1: float = 1.5, b: float = 0.75):
+        self.k1 = k1
+        self.b = b
+        self._doc_term_counts: list[dict[str, int]] = []
+        self._doc_lens = np.zeros(0, dtype=np.float64)
+        self._doc_freq: dict[str, int] = {}
+        self._avgdl = 0.0
+        self._n_docs = 0
+
+    @staticmethod
+    def _tokenize(text: str) -> list[str]:
+        return _TOKEN_RE.findall((text or "").lower())
+
+    def fit(self, texts: Sequence[str]) -> "Bm25Index":
+        """Index ``texts`` as the scorable corpus (position ``i`` in ``texts`` == position ``i`` in ``score()``)."""
+        docs = [self._tokenize(t) for t in texts]
+        self._n_docs = len(docs)
+        self._doc_term_counts = []
+        self._doc_freq = {}
+        lens: list[int] = []
+        for tokens in docs:
+            counts: dict[str, int] = {}
+            for tok in tokens:
+                counts[tok] = counts.get(tok, 0) + 1
+            self._doc_term_counts.append(counts)
+            lens.append(len(tokens))
+            for tok in counts:
+                self._doc_freq[tok] = self._doc_freq.get(tok, 0) + 1
+        self._doc_lens = np.asarray(lens, dtype=np.float64)
+        self._avgdl = float(self._doc_lens.mean()) if self._n_docs else 0.0
+        return self
+
+    def score(self, query: str) -> np.ndarray:
+        """BM25 score of ``query`` against every document passed to :meth:`fit`, in fit order."""
+        n = self._n_docs
+        if n == 0:
+            return np.zeros(0, dtype=np.float64)
+        scores = np.zeros(n, dtype=np.float64)
+        q_tokens = self._tokenize(query)
+        if not q_tokens:
+            return scores
+        avgdl = self._avgdl or 1.0
+        for tok in set(q_tokens):
+            df = self._doc_freq.get(tok, 0)
+            if df == 0:
+                continue
+            idf = math.log((n - df + 0.5) / (df + 0.5) + 1.0)
+            for i, counts in enumerate(self._doc_term_counts):
+                f = counts.get(tok, 0)
+                if f == 0:
+                    continue
+                denom = f + self.k1 * (1.0 - self.b + self.b * self._doc_lens[i] / avgdl)
+                scores[i] += idf * (f * (self.k1 + 1.0)) / denom
+        return scores
 
 
 _embedder: Embedder | None = None
