@@ -7,10 +7,12 @@ accuracy and more samples can even hurt — so prefer DETERMINISTIC / checkable 
 reference) over an LLM judge whenever the task admits one."""
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Awaitable, Callable
 
 from ..core.adapters import ChatCompletion, ChatMessage, ChatRequest, ModelAdapter
+from ..verification.physics import CalibrationVerifier, PhysicalVerifier
 from .bestofn import _sample, _text, extract_answer
 
 Verifier = Callable[[str], Awaitable[float]]      # candidate text -> score (higher is better)
@@ -62,8 +64,33 @@ def llm_judge_verifier(judge: ModelAdapter, *, criterion: str = "correctness and
     return verify
 
 
+def _ic6_verifier(spec_kind: str, spec: dict[str, Any]) -> Verifier:
+    """Adapt an IC-6 `Verifier` (``verify(claim, context) -> Verdict``, physics/mixle_mlops.verification) into this
+    module's answer-scoring `Verifier` (``candidate text -> score``). ``spec["context"]`` is the fixed verification
+    context (held-out truth, tolerances, bound overrides, ...); the claim is ``spec["claim"]`` when the caller
+    supplies one directly (e.g. verifying a fixed field/posterior artifact), otherwise the candidate text itself is
+    parsed as JSON into the claim dict (e.g. an LLM emitting a structured physical claim to be checked)."""
+    impl = PhysicalVerifier() if spec_kind == "physical" else CalibrationVerifier()
+    context = spec.get("context") or {}
+    static_claim = spec.get("claim")
+
+    async def verify(text: str) -> float:
+        if static_claim is not None:
+            claim = static_claim
+        else:
+            try:
+                claim = json.loads(text)
+            except (TypeError, ValueError):
+                claim = {}
+        verdict = impl.verify(claim, context)
+        return verdict.score if verdict.passed else 0.0
+
+    return verify
+
+
 def build_verifier(spec: dict[str, Any], registry: Any) -> Verifier | None:
-    """Construct a verifier from a request spec: {type: exact_match|numeric|llm_judge, ...}."""
+    """Construct a verifier from a request spec: {type: exact_match|numeric|llm_judge, ...}, or {kind:
+    physical|calibration, ...} for the IC-6 physics/calibration protocol (`mixle_mlops.verification`)."""
     kind = spec.get("type")
     if kind == "exact_match":
         return exact_match_verifier(str(spec.get("reference", "")))
@@ -85,6 +112,8 @@ def build_verifier(spec: dict[str, Any], registry: Any) -> Verifier | None:
                 return float(reward.score(text))
 
             return verify
+    if spec.get("kind") in {"physical", "calibration"}:
+        return _ic6_verifier(spec["kind"], spec)
     return None
 
 
