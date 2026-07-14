@@ -2,7 +2,9 @@
 the platform's own capabilities. It assembles OpenAI tool declarations + dispatch handlers from five sources:
 
   * the platform's MCP tools (``list_models`` + ``chat__<model>`` + ``score__<model>``) via the MCP schema bridge,
-  * the user's RAG store, as a callable ``rag_search`` (so the model can *decide* to retrieve, not always pay for it),
+  * the user's RAG store, as a callable ``rag_search`` (so the model can *decide* to retrieve, not always pay for it)
+    -- federated with a physics :class:`mixle_pde.reasoning.SpatialFieldStore` when one is configured, so a single
+    location-anchored call surfaces nearby documents AND nearby field tiles as source-native records,
   * mixle distribution/decision capabilities, as ``mixle_predict`` / ``mixle_decide`` over any hosted mixle model,
   * the platform's richer substrate/UQ/simulation capabilities (``substrate_retrieve``, ``uq``, ``simulate`` /
     ``synthesize``), gated by ``include_platform`` — the same tools a person can already reach through the
@@ -19,6 +21,7 @@ import json
 import uuid
 from typing import Any, Awaitable, Callable
 
+import numpy as np
 from mixle.task.replay import TraceStep
 
 from ..core.adapters import FunctionDef, ToolDef
@@ -35,13 +38,18 @@ Handler = Callable[[dict[str, Any]], Awaitable[Any]]
 # artifact, trace, context) exports under a generic, unvalidated schema so nothing in the substrate is dropped.
 _GENERIC_SCHEMA_URI = "mixle://schema/substrate-item/1"
 
+# A ``mixle_pde.reasoning.SpatialFieldStore`` instance, or a zero-arg factory that builds one lazily (so an
+# expensive volume isn't materialised until a registry that actually needs field retrieval is built).
+FieldStoreLike = Any
+
 
 class ToolRegistry:
     def __init__(self, registry: ModelRegistry, *, user_id: str | None = None,
                  names: list[str] | None = None, include_mcp: bool = True,
                  include_rag: bool = True, include_mixle: bool = True,
                  include_platform: bool = True, substrate: Any = None,
-                 model_id: str | None = None, verifier: Any = None):
+                 model_id: str | None = None, verifier: Any = None,
+                 field_store: FieldStoreLike | None = None):
         self.registry = registry
         self.user_id = user_id
         self.model_id = model_id      # the calling chat model's id, stamped onto every recorded step (M4a)
@@ -50,6 +58,7 @@ class ToolRegistry:
                                        # lazily constructed on first `substrate_retrieve` dispatch when absent
         self.trace_steps: list[TraceStep] = []   # every call this turn, already ExecutionTrace-ready (M4a)
         self._whitelist = set(names) if names else None      # optional restriction of the exposed catalog
+        self._field_store = field_store   # optional SpatialFieldStore (or factory) federated into rag_search (E8)
         self._defs: dict[str, ToolDef] = {}
         self._handlers: dict[str, Handler] = {}
         self._build(include_mcp, include_rag, include_mixle, include_platform)
@@ -70,10 +79,18 @@ class ToolRegistry:
             self._add(
                 ToolDef(function=FunctionDef(
                     name="rag_search",
-                    description="Search the user's uploaded documents and past conversations for relevant context.",
+                    description="Search the user's uploaded documents and past conversations for relevant "
+                                "context. Pass 'location' to also retrieve nearby physics field tiles from the "
+                                "configured SpatialFieldStore, federated alongside the document hits.",
                     parameters={"type": "object", "properties": {
                         "query": {"type": "string", "description": "what to search for"},
-                        "k": {"type": "integer", "description": "number of snippets", "default": 5},
+                        "k": {"type": "integer", "description": "number of snippets/tiles", "default": 5},
+                        "location": {"type": "array", "items": {"type": "number"},
+                                     "description": "optional (east, north[, up]) survey-frame coordinate; when "
+                                                     "given, nearby field tiles are retrieved alongside documents"},
+                        "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4,
+                                 "description": "optional (minx, miny, maxx, maxy) geographic bounding box that "
+                                                "pre-filters document chunks tagged with lon/lat metadata"},
                     }, "required": ["query"]})),
                 self._rag_search)
         if include_mixle:
@@ -182,15 +199,82 @@ class ToolRegistry:
 
     # --- handlers ---
     async def _rag_search(self, args: dict[str, Any]) -> Any:
-        from ..rag.index import retrieve
-
         query = str(args.get("query", "") or "")
         k = int(args.get("k", 5) or 5)
-        snippets = retrieve(self.user_id, query, k=k)
-        return {"results": [
-            {"text": s.get("text", ""), "source": s.get("source_id"), "namespace": s.get("namespace")}
-            for s in snippets
-        ]}
+        location = args.get("location")
+        bbox = args.get("bbox")
+
+        results = self._retrieve_documents(query, k, bbox)
+        if location is not None:
+            results = results + self._retrieve_field_tiles(location, k)
+        return {"results": results}
+
+    def _retrieve_documents(self, query: str, k: int, bbox: Any = None) -> list[dict[str, Any]]:
+        """Run the tenant's document RAG store (D3's ``retrieve``) and return source-native records.
+
+        Always passes the tenant (``user_id``) and the query text through untouched -- retrieval federation
+        never substitutes a different query or drops the tenant scope. ``bbox``, if given, is passed as a D3
+        ``filters={"bbox": ...}`` geoscience pre-filter; ``retrieve`` implementations that predate that kwarg
+        (a plain ``TypeError`` on the unexpected argument) degrade gracefully to the unfiltered call rather
+        than failing the whole federated search.
+        """
+        from ..rag.index import retrieve
+
+        hits: list[dict[str, Any]]
+        if bbox is not None:
+            filters = {"bbox": tuple(float(v) for v in bbox)}
+            try:
+                hits = retrieve(self.user_id, query, k=k, filters=filters)
+            except TypeError:
+                hits = retrieve(self.user_id, query, k=k)
+        else:
+            hits = retrieve(self.user_id, query, k=k)
+
+        records = []
+        for hit in hits:
+            meta = hit.get("meta") or {}
+            records.append({
+                "source_kind": "document",
+                "source_id": hit.get("source_id"),
+                "score": hit.get("score"),
+                "artifact_ref": meta.get("artifact_ref"),
+                "selector": meta.get("selector"),
+                "provenance": [{"chunk_id": hit.get("id"), "namespace": hit.get("namespace"), "meta": meta}],
+                "text": hit.get("text", ""),
+            })
+        return records
+
+    def _retrieve_field_tiles(self, location: Any, k: int) -> list[dict[str, Any]]:
+        """Retrieve the ``k`` nearest field tiles to ``location`` from the configured SpatialFieldStore.
+
+        ``CrossModalStore.retrieve`` returns bare corpus indices; each is dereferenced here against
+        ``.payloads`` (the tile's member cell indices -- the raw sub-volume) and ``.keys`` (the tile centroid,
+        used for the distance-based score) before it becomes a record. No bare integer is ever returned as
+        evidence.
+        """
+        if self._field_store is None:
+            return []
+        store = self._field_store() if callable(self._field_store) else self._field_store
+        cross_modal = store.store()
+
+        loc = np.asarray(location, dtype=float).reshape(-1)
+        records = []
+        for idx in cross_modal.retrieve(loc, k=k):
+            idx = int(idx)
+            centroid = np.asarray(cross_modal.keys[idx], dtype=float)
+            members = np.asarray(cross_modal.payloads[idx]).reshape(-1)   # dereferenced sub-volume, never idx
+            distance = float(np.linalg.norm(centroid - loc))
+            records.append({
+                "source_kind": "field_tile",
+                "source_index": idx,
+                "score": 1.0 / (1.0 + distance),
+                "artifact_ref": None,
+                "selector": {"tile_index": idx, "n_cells": int(members.size)},
+                "provenance": [{"kind": "spatial_field_store", "distance": distance}],
+                "location": [float(v) for v in centroid],
+                "grid": {"cell_indices": [int(m) for m in members]},
+            })
+        return records
 
     async def _mixle_predict(self, args: dict[str, Any]) -> Any:
         adapter = self.registry.get(args["model"])
