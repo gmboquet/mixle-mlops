@@ -1,0 +1,32 @@
+{
+  "fault": [
+    {
+      "id": "fault-1",
+      "geometry_type": "LineString",
+      "pixel_coords": [[10, 10], [90, 90]],
+      "properties": {"kind": "normal", "confidence": 0.92}
+    }
+  ],
+  "contact": [
+    {
+      "id": "contact-1",
+      "geometry_type": "LineString",
+      "pixel_coords": [[0, 50], [100, 40]],
+      "properties": {"kind": "depositional"}
+    }
+  ],
+  "unit": [
+    {
+      "id": "unit-1",
+      "geometry_type": "Polygon",
+      "pixel_coords": [[[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]]],
+      "properties": {"label": "Qal"}
+    },
+    {
+      "id": "unit-degenerate",
+      "geometry_type": "Polygon",
+      "pixel_coords": [[[5, 5], [5, 5]]],
+      "properties": {"label": "too-small"}
+    }
+  ]
+}
