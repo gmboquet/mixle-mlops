@@ -67,3 +67,23 @@ def test_capability_models_from_env(monkeypatch):
     assert capability_models_from_env() == {"vision": "qwen3-vl-flash"}
     monkeypatch.setenv("MIXLE_CAPABILITY_MODELS", "not json")
     assert capability_models_from_env() == {}  # degrades to defaults, never raises
+
+
+def test_resolve_embedder_routes_to_the_configured_remote_model():
+    from mixle_mlops.models.capabilities import resolve_embedder
+    emb = resolve_embedder(_backends())
+    assert emb.base_url.startswith("https://dashscope-intl")  # the embedding model's backend
+    assert emb.allow_remote is True
+
+
+def test_resolve_embedder_falls_back_to_local_hashing_when_no_backend():
+    from mixle_mlops.models.capabilities import resolve_embedder
+    emb = resolve_embedder({})  # no backends configured
+    assert emb.allow_remote is False  # deterministic local hashing, retrieval still works
+
+
+def test_embedding_capability_is_overridable_like_the_others():
+    from mixle_mlops.models.capabilities import EMBEDDING, resolve_embedder
+    backends = {"my-embed": {"provider": "openai", "base_url": "http://x/v1", "api_key": "k"}}
+    emb = resolve_embedder(backends, capability_models={EMBEDDING: "my-embed"})
+    assert emb.base_url == "http://x/v1"
