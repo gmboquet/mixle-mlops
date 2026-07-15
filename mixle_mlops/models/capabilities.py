@@ -29,6 +29,8 @@ __all__ = [
     "resolve_from_settings",
     "providers_from_keys",
     "capability_models_from_env",
+    "resolve_embedder",
+    "resolve_embedder_from_settings",
 ]
 
 TEXT = "text"
@@ -40,6 +42,7 @@ EMBEDDING = "embedding"
 DEFAULT_CAPABILITY_MODELS: dict[str, str] = {
     TEXT: "deepseek-chat",
     VISION: "qwen3-vl-plus",
+    EMBEDDING: "text-embedding-v4",
 }
 
 # Known-provider endpoint conveniences: build a llm_backends block straight from a keys dict, so a
@@ -51,7 +54,8 @@ _KNOWN_PROVIDERS: dict[str, dict[str, Any]] = {
         "base_url": "https://api.deepseek.com",
     },
     "QWEN_API_KEY": {
-        "models": {"qwen3-vl-plus": "qwen3-vl-plus", "qwen3-vl-flash": "qwen3-vl-flash", "qwen3-max": "qwen3-max"},
+        "models": {"qwen3-vl-plus": "qwen3-vl-plus", "qwen3-vl-flash": "qwen3-vl-flash",
+                   "qwen3-max": "qwen3-max", "text-embedding-v4": "text-embedding-v4"},
         "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
     },
 }
@@ -127,3 +131,40 @@ def resolve_from_settings(capability: str, *, settings: Any = None, capability_m
         capability, s.llm_backends or {}, capability_models=merged,
         default_base_url=s.llm_base_url, default_api_key=s.llm_api_key,
     )
+
+
+def resolve_embedder(
+    backends: dict[str, dict[str, str]],
+    *,
+    capability_models: dict[str, str] | None = None,
+    default_base_url: str = "",
+    default_api_key: str = "",
+    allow_remote: bool = True,
+) -> Any:
+    """Return a configured text :class:`~mixle_mlops.rag.embeddings.Embedder` for the ``embedding``
+    capability -- embedding is a capability too, routed the same way as ``text``/``vision`` so callers
+    (e.g. the agent tool registry, RAG) get a good embedding model without hard-coding a provider.
+
+    Falls back to the deterministic local hashing embedder (``allow_remote=False``) if the resolved
+    model has no backend and no ``default_base_url`` -- so retrieval always works, just less well
+    (which is exactly the tradeoff the local fallback exists for)."""
+    from mixle_mlops.rag.embeddings import Embedder
+
+    cap_map = {**DEFAULT_CAPABILITY_MODELS, **(capability_models or {})}
+    model_id = cap_map.get(EMBEDDING)
+    backend = dict((backends or {}).get(model_id, {})) if model_id else {}
+    base_url = backend.get("base_url", default_base_url)
+    api_key = backend.get("api_key", default_api_key)
+    if not base_url:
+        return Embedder(allow_remote=False)  # no remote configured -> deterministic local hashing
+    return Embedder(base_url=base_url, api_key=api_key, model=model_id, allow_remote=allow_remote)
+
+
+def resolve_embedder_from_settings(*, settings: Any = None, capability_models: dict[str, str] | None = None) -> Any:
+    """Convenience mirror of :func:`resolve_from_settings` for the embedding capability."""
+    from mixle_mlops.config import get_settings
+
+    s = settings or get_settings()
+    merged = {**capability_models_from_env(), **(capability_models or {})}
+    return resolve_embedder(s.llm_backends or {}, capability_models=merged,
+                            default_base_url=s.llm_base_url, default_api_key=s.llm_api_key)
