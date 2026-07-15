@@ -128,6 +128,8 @@ async def run_tool_agent(
         max_steps: max tool-call rounds before giving up (``stopped_reason="max_steps"``).
         system: override the default system prompt.
         verifier: optional ``(answer, steps) -> {"passed": bool, "reasons": [...]}`` gate on the answer.
+            May be sync or async (awaited if it returns a coroutine) -- so a verifier that itself calls
+            a model, e.g. :class:`mixle_mlops.agent.verification.AgentAnswerVerifier`, works directly.
         temperature: decode temperature (0.0 = deterministic planning).
 
     Returns:
@@ -175,6 +177,8 @@ async def run_tool_agent(
         answer = msg.text()
         if verifier is not None:
             verdict = verifier(answer, steps)
+            if inspect.isawaitable(verdict):  # a verifier may itself call a model (e.g. an adversarial critic)
+                verdict = await verdict
             if not verdict.get("passed", False) and not verifier_retry_used:
                 verifier_retry_used = True
                 messages.append(ChatMessage(role="assistant", content=answer))
