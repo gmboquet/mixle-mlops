@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -265,7 +265,9 @@ class GovernedDeploymentRegistry:
     ) -> GovernedAdoptionReceipt:
         candidate = self.deployments.candidate(candidate_id)
         evaluation = (
-            evaluation if isinstance(evaluation, EvaluationAttestation) else EvaluationAttestation.from_dict(evaluation)
+            evaluation
+            if isinstance(evaluation, EvaluationAttestation)
+            else EvaluationAttestation.from_dict(evaluation)
         )
         authorization = (
             authorization
