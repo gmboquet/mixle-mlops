@@ -152,21 +152,89 @@ def _apply_affine(pixel_to_crs: tuple[float, ...], x: float, y: float) -> tuple[
 # --- step 3: VLM call (the monkeypatch seam) -----------------------------------------------------------------
 
 
+def _extract_json_object(text: str) -> str:
+    """Pull the first ``{...}`` JSON object out of a model reply, tolerating markdown fences/prose."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:]
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        raise ValueError("model reply did not contain a JSON object")
+    return text[start : end + 1]
+
+
+def _map_extraction_prompt(layers: tuple[str, ...], width: int, height: int) -> str:
+    return (
+        "You are digitizing a geological map image. For EACH of these layers, extract the vector "
+        f"features you can see: {list(layers)}. The image is {width} pixels wide and {height} tall; "
+        "give every coordinate as [x, y] pixel positions (origin top-left). Reply with ONLY a JSON "
+        "object of the form {\"<layer>\": [{\"id\": str, \"geometry_type\": \"Point\"|\"LineString\"|"
+        "\"Polygon\", \"pixel_coords\": [[x,y], ...], \"properties\": {..}}, ...], ...}. A Point has a "
+        "single [x,y]; a LineString a list of [x,y]; a Polygon a closed ring of [x,y]. Include only "
+        "features you actually see; use an empty list for a layer with none. No prose, only the JSON."
+    )
+
+
+def _resolve_vision_adapter(vlm: str | None) -> Any:
+    """Resolve a vision adapter through the capability layer -- ``vlm`` (if given) overrides the model
+    that serves the ``vision`` capability; otherwise the configured default is used. Raises a clear
+    error (from :func:`~mixle_mlops.models.capabilities.resolve_adapter`) if no vision backend is
+    configured -- digitizing a map genuinely requires a VLM, so this fails loud rather than silently."""
+    from ..models.capabilities import VISION, resolve_from_settings
+
+    override = {VISION: vlm} if vlm else None
+    return resolve_from_settings(VISION, capability_models=override)
+
+
+def _run_vision_json(adapter: Any, model_id: str, image_bytes: bytes, prompt: str) -> dict[str, Any]:
+    import asyncio
+    import base64
+
+    from ..core.adapters import ChatMessage, ChatRequest, ImagePart, TextPart
+
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+    req = ChatRequest(
+        model=model_id,
+        messages=[ChatMessage(role="user", content=[
+            TextPart(text=prompt),
+            ImagePart(image_url={"url": f"data:image/png;base64,{b64}"}),
+        ])],
+        temperature=0.0,
+    )
+    completion = asyncio.run(adapter.chat(req))
+    text = completion.choices[0].message.text()
+    return json.loads(_extract_json_object(text))
+
+
 def _query_vlm(tiles: list[bytes], *, layers: tuple[str, ...], vlm: str | None) -> dict[str, list[dict[str, Any]]]:
     """Prompt a vision-language model with the structured per-layer extraction schema and return
     ``{layer_name: [feature, ...]}`` in pixel space, where each ``feature`` is
     ``{"id", "geometry_type", "pixel_coords", "properties"}``.
 
-    No live backend is wired at this seam yet -- a real integration (gateway model registry + structured
-    JSON schema prompt) plugs in at this single call site. Tests monkeypatch this function with a recorded or
-    fixture-backed response (see ``tests/fixtures/geomap_stub.json``) to exercise the rest of the pipeline
-    deterministically.
-    """
-    raise NotImplementedError(
-        "digitize_map needs a live VLM backend; monkeypatch "
-        "mixle_mlops.multimodal.map_digitize._query_vlm (or wire a real model call here) to supply "
-        "structured per-layer pixel features."
-    )
+    Wired through the capability-routed model layer (:mod:`mixle_mlops.models.capabilities`): it asks
+    for the ``vision`` capability (or the model named by ``vlm``), sends the map tile plus the
+    structured-JSON prompt, and parses the reply. Tests may still monkeypatch this whole function with a
+    recorded fixture (``tests/fixtures/geomap_stub.json``) for deterministic, network-free runs.
+
+    Single-tile is handled today (the common case after raster windowing); multi-tile pixel-coordinate
+    stitching across tiles is a documented follow-up -- only ``tiles[0]`` is sent, and the caller's
+    downstream sanity-check + reproject steps still apply to whatever the VLM returns (a real,
+    first-line guard against VLM feature hallucination; a fuller calibration/verification gate on VLM
+    output is the next step)."""
+    if not tiles:
+        return {layer: [] for layer in layers}
+    adapter = _resolve_vision_adapter(vlm)
+    from PIL import Image
+    import io as _io
+
+    width, height = Image.open(_io.BytesIO(tiles[0])).size
+    prompt = _map_extraction_prompt(layers, width, height)
+    raw = _run_vision_json(adapter, vlm or adapter.name, tiles[0], prompt)
+    if not isinstance(raw, dict):
+        return {layer: [] for layer in layers}
+    return {layer: list(raw.get(layer, []) or []) for layer in layers}
 
 
 # --- step 4/5: sanity-check + reproject -----------------------------------------------------------------------
