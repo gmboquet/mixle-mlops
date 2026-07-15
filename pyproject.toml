@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mixle-mlops"
-version = "0.1.0"
-description = "All-in-one AI platform: host mixle models + open LLMs behind one OpenAI-compatible gateway, with accounts, API keys, multimodal, MCP, a chat UI, and a principled (mixle-powered) RLHF feedback loop."
+version = "0.8.0.dev0"
+description = "Operational control plane for durable Mixle jobs, artifacts, model serving, monitoring, promotion, and rollback."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Grant Boquet" }]
 dependencies = [
@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff==0.15.17", "pytest>=8", "pytest-asyncio>=0.23", "fakeredis>=2", "moto[s3]>=5"]
+dev = ["ruff==0.15.17", "pytest>=8", "pytest-asyncio>=0.23", "fakeredis>=2", "moto[s3]>=5", "build>=1.2"]
 documents = ["pypdf>=4", "python-docx>=1", "python-pptx>=0.6", "openpyxl>=3.1", "lasio>=0.31"]
                                                      # PDF/DOCX/PPTX ingestion + XLSX/LAS typed-table parsing
 ocr = ["pytesseract>=0.3", "pdf2image>=1.16"]       # scanned-PDF OCR fallback (also needs the tesseract +
@@ -53,6 +53,9 @@ Core = "https://github.com/gmboquet/mixle"
 
 [tool.setuptools.packages.find]
 include = ["mixle_mlops*"]
+
+[tool.setuptools.package-data]
+mixle_mlops = ["control_surface_manifest.json"]
 
 [tool.ruff]
 line-length = 118

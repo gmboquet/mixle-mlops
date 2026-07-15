@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "release": "0.8.0",
+  "classifications": [
+    {"path": "control", "maturity": "supported-kernel", "owner": "mixle-mlops", "action": "retain"},
+    {"path": "accounts", "maturity": "partial", "owner": "mixle-mlops", "action": "harden under OPS-200"},
+    {"path": "artifacts", "maturity": "experimental", "owner": "mixle-mlops", "action": "migrate to control artifact protocol"},
+    {"path": "cache", "maturity": "partial", "owner": "mixle-mlops", "action": "retain as operational adapter"},
+    {"path": "compute", "maturity": "experimental", "owner": "mixle-mlops", "action": "adapt to control invocation and run contracts"},
+    {"path": "context_handoff", "maturity": "compatibility", "owner": "mixle-mlops", "action": "adapt to inquiry and knowledge public contracts"},
+    {"path": "datasets", "maturity": "partial", "owner": "mixle-aifactory", "action": "migrate dataset-build intent; retain execution adapter"},
+    {"path": "documents", "maturity": "partial", "owner": "mixle-data", "action": "migrate parsing semantics; retain hosted adapter"},
+    {"path": "engines", "maturity": "experimental", "owner": "mixle-mlops", "action": "retain provider execution"},
+    {"path": "evolve", "maturity": "experimental", "owner": "mixle-aifactory", "action": "migrate improvement intent; require harness promotion"},
+    {"path": "feedback", "maturity": "experimental", "owner": "mixle-aifactory", "action": "migrate training semantics; retain collection operations"},
+    {"path": "gateway", "maturity": "partial", "owner": "mixle-mlops", "action": "harden under OPS-220"},
+    {"path": "image_gen", "maturity": "experimental", "owner": "mixle-represent", "action": "migrate synthesis semantics; retain serving adapter"},
+    {"path": "knowledge", "maturity": "compatibility", "owner": "mixle-knowledge", "action": "replace semantic logic with public contract adapter"},
+    {"path": "mcp", "maturity": "experimental", "owner": "mixle-agent", "action": "retain transport; domain tools become plugins"},
+    {"path": "models", "maturity": "mixed", "owner": "mixle-represent", "action": "migrate domain/model semantics; retain serving adapters"},
+    {"path": "multimodal", "maturity": "mixed", "owner": "mixle-data", "action": "migrate ingest/extraction semantics; retain operational storage"},
+    {"path": "rag", "maturity": "partial", "owner": "mixle-knowledge", "action": "migrate retrieval semantics; retain hosted index adapter"},
+    {"path": "storage", "maturity": "partial", "owner": "mixle-mlops", "action": "harden under OPS-200"},
+    {"path": "training", "maturity": "experimental", "owner": "mixle-aifactory", "action": "migrate plan semantics; retain worker execution"},
+    {"path": "verification", "maturity": "experimental", "owner": "mixle-harness", "action": "migrate verdict semantics; retain invocation adapter"},
+    {"path": "biodiversity_monitoring.py", "maturity": "application-specific", "owner": "mixle-demos", "action": "extract plugin"},
+    {"path": "production_serving.py", "maturity": "experimental", "owner": "mixle-mlops", "action": "adapt to control registry"}
+  ]
+}

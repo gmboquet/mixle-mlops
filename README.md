@@ -1,5 +1,19 @@
 # mixle-mlops
 
+The 0.8 operational kernel gives all Mixle semantic owners one provider-neutral execution boundary: owner-scoped
+artifacts, immutable invocation identity, jobs and runs, leases, idempotency, bounded events, cancellation,
+checkpoints, retry/recovery, result receipts, model candidates, evidence-gated promotion, deployments, and rollback.
+Operational success is stamped `not_evaluated`; it never implies that a scientific result is correct.
+
+`DurableLocalRunner` is the single-node reference implementation. It survives process restart, detects expired leases
+and checkpoint tampering, preserves semantic hashes across retries, and isolates organization/project data.
+`DeploymentRegistry` accepts immutable candidates only when exact trusted factory and harness receipts cover the same
+artifact and required suites; failed deployments roll back through an auditable registry event.
+
+The packaged `control_surface_manifest.json` classifies the older broad runtime as supported, partial, experimental,
+compatibility, or application-specific and assigns migration owners. The gateway and integrations below remain useful,
+but their presence is not a blanket maturity claim.
+
 An **all-in-one AI platform**: host [mixle](https://github.com/gmboquet/mixle) probabilistic models *and* open
 LLMs (Llama, DeepSeek, Qwen, …) behind one **OpenAI-compatible** gateway — with accounts, API keys, a chat UI,
 multimodal, RAG, an MCP server, tool calling + a server-side agentic loop, and the things that make mixle more
