@@ -10,12 +10,18 @@ a chat UI + landing page, and a principled (mixle-powered) RLHF feedback loop. S
 
 from .context_handoff import ContextEvent, ContextRun, ContextRunState, ContextRunStore, bundle_digest
 from .control import (
+    ArchitectureEpochPin,
     DeploymentRegistry,
     DurableLocalRunner,
     EvidenceReceipt,
+    EvaluationAttestation,
+    GovernedAdoptionPolicy,
+    GovernedAdoptionReceipt,
+    GovernedDeploymentRegistry,
     InvocationSpec,
     JobSpec,
     LocalArtifactStore,
+    LifecycleAuthorization,
     ModelCandidate,
     PromotionPolicy,
 )
@@ -23,6 +29,7 @@ from .control import (
 __version__ = "0.8.0.dev0"
 
 __all__ = [
+    "ArchitectureEpochPin",
     "ContextEvent",
     "ContextRun",
     "ContextRunState",
@@ -30,9 +37,14 @@ __all__ = [
     "DeploymentRegistry",
     "DurableLocalRunner",
     "EvidenceReceipt",
+    "EvaluationAttestation",
+    "GovernedAdoptionPolicy",
+    "GovernedAdoptionReceipt",
+    "GovernedDeploymentRegistry",
     "InvocationSpec",
     "JobSpec",
     "LocalArtifactStore",
+    "LifecycleAuthorization",
     "ModelCandidate",
     "PromotionPolicy",
     "bundle_digest",
