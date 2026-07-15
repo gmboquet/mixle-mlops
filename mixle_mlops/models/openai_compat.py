@@ -26,12 +26,16 @@ class OpenAICompatAdapter(ModelAdapter):
     kind = "llm"
 
     def __init__(self, name: str, *, base_url: str, api_key: str = "", upstream_model: str | None = None,
-                 timeout: float = 600.0):
+                 timeout: float = 600.0, transport: httpx.BaseTransport | None = None):
         self._name = name
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.upstream_model = upstream_model or name
         self.timeout = timeout
+        self._transport = transport  # injectable for offline tests (httpx.MockTransport); None = real network
+
+    def _client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(timeout=self.timeout, transport=self._transport)
 
     @property
     def name(self) -> str:
@@ -61,7 +65,7 @@ class OpenAICompatAdapter(ModelAdapter):
         return h
 
     async def chat(self, req: ChatRequest) -> ChatCompletion:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with self._client() as client:
             r = await client.post(f"{self.base_url}/chat/completions",
                                   json=self._payload(req, False), headers=self._headers())
             r.raise_for_status()
@@ -90,7 +94,7 @@ class OpenAICompatAdapter(ModelAdapter):
         )
 
     async def stream(self, req: ChatRequest) -> AsyncIterator[ChatCompletionChunk]:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with self._client() as client:
             async with client.stream("POST", f"{self.base_url}/chat/completions",
                                      json=self._payload(req, True), headers=self._headers()) as r:
                 r.raise_for_status()
@@ -127,7 +131,7 @@ class OpenAICompatAdapter(ModelAdapter):
     async def list_upstream_models(self) -> list[str]:
         """Discover model ids the backend serves (GET /models)."""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, transport=self._transport) as client:
                 r = await client.get(f"{self.base_url}/models", headers=self._headers())
                 r.raise_for_status()
                 return [m["id"] for m in r.json().get("data", []) if "id" in m]
