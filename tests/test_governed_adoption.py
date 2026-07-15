@@ -8,6 +8,7 @@ from mixle_mlops.control import (
     EvidenceReceipt,
     GovernedAdoptionPolicy,
     GovernedDeploymentRegistry,
+    LifecycleAuthorization,
     ModelCandidate,
     OperationalError,
     OwnerScope,
@@ -110,6 +111,14 @@ def test_adoption_requires_acceptance_authorization_and_epoch_pin(tmp_path):
     assert receipt.architecture_epoch_id == "epoch-0"
     assert registry.deployments.resolve("production").id == "candidate-1"
     assert GovernedDeploymentRegistry(tmp_path).receipts == (receipt,)
+    authorization = LifecycleAuthorization.from_dict(_authorization())
+    assert authorization.as_evolution_handoff(
+        candidate_id="candidate-1",
+        authorization_project="PRJ-MLOPS",
+        at="2026-01-02T00:00:00Z",
+    )["status"] == "granted"
+    assert receipt.as_evolution_handoff()["candidate_id"] == "candidate-1"
+    assert EvaluationAttestation.from_dict(_evaluation().__dict__) == _evaluation()
 
 
 @pytest.mark.parametrize(

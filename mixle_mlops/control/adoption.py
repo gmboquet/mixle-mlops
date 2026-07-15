@@ -14,6 +14,10 @@ from .contracts import EvidenceReceipt, OperationalError, PromotionPolicy, canon
 from .registry import DeploymentReceipt, DeploymentRegistry
 
 
+EVOLUTION_AUTHORIZATION_CONTRACT = "mixle.capability-evolution-authorization"
+EVOLUTION_ADOPTION_CONTRACT = "mixle.capability-evolution-adoption"
+
+
 def _time(value: str, label: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -52,6 +56,19 @@ class EvaluationAttestation:
     builder_project: str
     signature: str
     authorization_status: str = "not_requested"
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> EvaluationAttestation:
+        return cls(
+            id=str(value.get("id", "")),
+            candidate_id=str(value.get("candidate_id", "")),
+            artifact_digest=str(value.get("artifact_digest", "")),
+            recommendation=str(value.get("recommendation", "")),
+            evaluator_project=str(value.get("evaluator_project", "")),
+            builder_project=str(value.get("builder_project", "")),
+            signature=str(value.get("signature", "")),
+            authorization_status=str(value.get("authorization_status", "not_requested")),
+        )
 
     def __post_init__(self) -> None:
         if any(
@@ -124,6 +141,39 @@ class LifecycleAuthorization:
             return False
         return scope in self.scopes or "*" in self.scopes
 
+    def effective_status(self, *, at: str) -> str:
+        instant = _time(at, "authorization status time")
+        if instant < _time(self.decided_at, "authorization decided_at"):
+            return "not_effective"
+        if self.outcome != "granted":
+            return "denied"
+        if self.revoked_at is not None and instant >= _time(self.revoked_at, "authorization revoked_at"):
+            return "revoked"
+        if self.expires_at is not None and instant >= _time(self.expires_at, "authorization expires_at"):
+            return "expired"
+        return "granted"
+
+    def as_evolution_handoff(
+        self,
+        *,
+        candidate_id: str,
+        authorization_project: str,
+        at: str,
+        cost_usd: float = 0.0,
+    ) -> dict[str, Any]:
+        if not candidate_id.strip() or not authorization_project.strip() or cost_usd < 0:
+            raise OperationalError("authorization handoff requires candidate, project, and non-negative cost")
+        return {
+            "contract_id": EVOLUTION_AUTHORIZATION_CONTRACT,
+            "schema_version": "1.0.0",
+            "id": self.decision_id,
+            "candidate_id": candidate_id,
+            "status": self.effective_status(at=at),
+            "authorization_project": authorization_project,
+            "scopes": list(self.scopes),
+            "cost_usd": float(cost_usd),
+        }
+
 
 @dataclass(frozen=True)
 class GovernedAdoptionPolicy:
@@ -143,6 +193,20 @@ class GovernedAdoptionReceipt:
     architecture_epoch_id: str
     architecture_digest: str
     adopted_at: str
+
+    def as_evolution_handoff(self, *, cost_usd: float = 0.0) -> dict[str, Any]:
+        if self.deployment.candidate_id is None:
+            raise OperationalError("adoption receipt does not identify a candidate")
+        if cost_usd < 0:
+            raise OperationalError("adoption handoff cost cannot be negative")
+        return {
+            "contract_id": EVOLUTION_ADOPTION_CONTRACT,
+            "schema_version": "1.0.0",
+            "id": f"adoption-{self.sequence}",
+            "candidate_id": self.deployment.candidate_id,
+            "status": "adopted",
+            "cost_usd": float(cost_usd),
+        }
 
 
 class GovernedDeploymentRegistry:
@@ -190,7 +254,7 @@ class GovernedDeploymentRegistry:
         candidate_id: str,
         alias: str,
         evidence: tuple[EvidenceReceipt, ...],
-        evaluation: EvaluationAttestation,
+        evaluation: EvaluationAttestation | Mapping[str, Any],
         authorization: LifecycleAuthorization | Mapping[str, Any],
         epoch: ArchitectureEpochPin,
         policy: GovernedAdoptionPolicy,
@@ -200,6 +264,9 @@ class GovernedDeploymentRegistry:
         adopted_at: str,
     ) -> GovernedAdoptionReceipt:
         candidate = self.deployments.candidate(candidate_id)
+        evaluation = (
+            evaluation if isinstance(evaluation, EvaluationAttestation) else EvaluationAttestation.from_dict(evaluation)
+        )
         authorization = (
             authorization
             if isinstance(authorization, LifecycleAuthorization)
@@ -271,4 +338,6 @@ __all__ = [
     "GovernedAdoptionReceipt",
     "GovernedDeploymentRegistry",
     "LifecycleAuthorization",
+    "EVOLUTION_ADOPTION_CONTRACT",
+    "EVOLUTION_AUTHORIZATION_CONTRACT",
 ]
