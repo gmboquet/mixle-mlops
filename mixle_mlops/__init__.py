@@ -8,4 +8,8 @@ a chat UI + landing page, and a principled (mixle-powered) RLHF feedback loop. S
     app = create_app()              # a FastAPI app; run with `mixle-serve`
 """
 
+from .context_handoff import ContextEvent, ContextRun, ContextRunState, ContextRunStore, bundle_digest
+
 __version__ = "0.1.0"
+
+__all__ = ["ContextEvent", "ContextRun", "ContextRunState", "ContextRunStore", "bundle_digest"]
