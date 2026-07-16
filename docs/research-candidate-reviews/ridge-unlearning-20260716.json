@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "review_id": "MLOPS-REVIEW-20260716-UNLEARNING",
+  "owner_project": "PRJ-MLOPS",
+  "candidate_project": "PRJ-EXPERIMENTS",
+  "candidate_revision": "380b90ecca689da439cef10a24e85f58d162c540",
+  "target_revision": "4f742916502c206c9478ee4c4f3e8699648c2311",
+  "reviewed_at": "2026-07-16T01:40:00Z",
+  "independence": {
+    "imports_experiment_code": false,
+    "direct_runtime_dependency": false,
+    "method": "Target-owner threat-model and operational-gate review against MLOps model lineage, retraining, promotion and rollback surfaces.",
+    "target_evidence": [
+      "repo:mixle-mlops@4f742916502c206c9478ee4c4f3e8699648c2311:mixle_mlops/drift_retrain.py",
+      "repo:mixle-mlops@4f742916502c206c9478ee4c4f3e8699648c2311:mixle_mlops/evolve/lineage.py",
+      "repo:mixle-mlops@4f742916502c206c9478ee4c4f3e8699648c2311:mixle_mlops/evolve/models.py"
+    ]
+  },
+  "review": {
+    "candidate_id": "ridge-unlearning-certificate-0.8",
+    "bundle_digest": "1619b1f442126512bad6bc375a33cbe2f7381f6924bb1b4feda8c1d906688909",
+    "candidate_claim": "One Sherman-Morrison deletion from bounded float64 ridge regression matches exact retraining and detects input or parameter tampering.",
+    "target_use_case": "Auditable removal of governed training influence from supported deployed model artifacts under an explicit privacy, security and rollback policy.",
+    "threat_model": {
+      "candidate_covers": ["one known row deletion", "bounded full-rank ridge regression", "exact-retrain numerical comparison", "digest mismatch detection"],
+      "target_requires": ["supported deployed model families", "multiple and repeated removals", "complete data-to-model lineage", "authorized deletion identity", "adversarial certificate review", "privacy claim semantics", "rollback and post-removal monitoring"]
+    },
+    "stopping_rule": "Reject current-target promotion when the candidate model class or evidence model does not match a supported deployed artifact; do not reinterpret numerical equality as a privacy guarantee.",
+    "gates": [
+      {"id":"candidate-identity","required":true,"criterion":"Exact candidate bundle and source revision are identified.","result":"met","evidence":"repo:mixle-experiments@380b90ecca689da439cef10a24e85f58d162c540:experiments/unlearning_certificate/RESULTS.md"},
+      {"id":"model-applicability","required":true,"criterion":"The candidate applies to a supported deployed target model family.","result":"not_met","evidence":"The reviewed target revision deploys broader model workflows; no supported ridge artifact adopts this certificate."},
+      {"id":"deletion-lineage","required":true,"criterion":"Authorized requests bind every removed datum through training, artifact and deployment lineage.","result":"not_met","evidence":"The candidate hashes a bounded input matrix but does not integrate target authorization or production lineage."},
+      {"id":"privacy-security","required":true,"criterion":"Claims and adversaries are independently reviewed without treating parameter equality as privacy proof.","result":"not_met","evidence":"The candidate explicitly provides no privacy guarantee and has no target threat-model review beyond this rejection."},
+      {"id":"operations","required":true,"criterion":"Repeated removals, rollback, monitoring and artifact replacement are verified.","result":"not_met","evidence":"Only one local deletion is exercised; no target lifecycle integration exists."}
+    ],
+    "decision": "reject",
+    "rationale": "The bounded numerical certificate is valid research evidence but is not applicable to the target's supported model lifecycle and cannot authorize a privacy or production-unlearning claim.",
+    "limitations": ["This rejects promotion of this exact candidate; a separately scoped target-native unlearning design may reuse the numerical invariant as one low-level check."]
+  }
+}
