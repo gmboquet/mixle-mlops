@@ -17,6 +17,12 @@ from .contracts import (
     canonical_json,
     semantic_hash,
 )
+from .integrity import (
+    IntegrityFinding,
+    IntegrityIssue,
+    IntegrityReport,
+    check_registry_integrity,
+)
 from .registry import DeploymentReceipt, DeploymentRegistry
 from .runner import DurableLocalRunner, JobRecord, Lease
 
@@ -28,6 +34,9 @@ __all__ = [
     "DurableLocalRunner",
     "EvidenceKind",
     "EvidenceReceipt",
+    "IntegrityFinding",
+    "IntegrityIssue",
+    "IntegrityReport",
     "InvocationSpec",
     "JobRecord",
     "JobSpec",
@@ -40,5 +49,6 @@ __all__ = [
     "ResourceLimits",
     "RetryPolicy",
     "canonical_json",
+    "check_registry_integrity",
     "semantic_hash",
 ]

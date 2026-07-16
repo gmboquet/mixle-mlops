@@ -13,11 +13,13 @@ from .control import (
     DeploymentRegistry,
     DurableLocalRunner,
     EvidenceReceipt,
+    IntegrityReport,
     InvocationSpec,
     JobSpec,
     LocalArtifactStore,
     ModelCandidate,
     PromotionPolicy,
+    check_registry_integrity,
 )
 
 __version__ = "0.8.0.dev0"
@@ -30,10 +32,12 @@ __all__ = [
     "DeploymentRegistry",
     "DurableLocalRunner",
     "EvidenceReceipt",
+    "IntegrityReport",
     "InvocationSpec",
     "JobSpec",
     "LocalArtifactStore",
     "ModelCandidate",
     "PromotionPolicy",
     "bundle_digest",
+    "check_registry_integrity",
 ]

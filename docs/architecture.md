@@ -5,3 +5,9 @@ promotion contracts. `LocalArtifactStore` is the owner-scoped content-addressed 
 persists jobs atomically and coordinates leases, events, checkpoints, cancellation, retry, and recovery while workers
 execute injected domain code. `DeploymentRegistry` stores immutable candidates and promotion/rollback history. Existing
 gateway, account, storage, compute, provider, and frontend modules become adapters over this control boundary.
+
+`check_registry_integrity` (`control.integrity`) is a stateless, read-only auditor over a loaded `DeploymentRegistry`.
+It replays the receipt log to re-derive the alias/previous projection, cross-checks every alias and previous pointer
+against registered candidates, and -- when handed a `LocalArtifactStore` -- reuses that store's own digest
+verification to confirm each candidate's artifact is still present and byte-exact. It holds no state of its own and
+never writes to the registry it inspects.

@@ -9,6 +9,11 @@ Operational success is stamped `not_evaluated`; it never implies that a scientif
 and checkpoint tampering, preserves semantic hashes across retries, and isolates organization/project data.
 `DeploymentRegistry` accepts immutable candidates only when exact trusted factory and harness receipts cover the same
 artifact and required suites; failed deployments roll back through an auditable registry event.
+`check_registry_integrity` (`mixle_mlops.control.integrity`) is a read-only auditor over that registry: it replays the
+receipt log and compares it against the live alias state, flags any dangling alias or "previous" pointer, and --
+when handed an artifact store -- verifies every candidate's artifact is still present and byte-exact. It never mutates
+the registry; it only tells you whether the bookkeeping a crash or a hand-edited file could have disturbed still
+agrees with itself.
 
 The packaged `control_surface_manifest.json` classifies the older broad runtime as supported, partial, experimental,
 compatibility, or application-specific and assigns migration owners. The gateway and integrations below remain useful,
