@@ -1,5 +1,13 @@
 """Stable operational contracts, durable local execution, and governed deployment."""
 
+from .adoption import (
+    ArchitectureEpochPin,
+    EvaluationAttestation,
+    GovernedAdoptionPolicy,
+    GovernedAdoptionReceipt,
+    GovernedDeploymentRegistry,
+    LifecycleAuthorization,
+)
 from .artifacts import LocalArtifactStore
 from .contracts import (
     ArtifactRef,
@@ -10,6 +18,7 @@ from .contracts import (
     JobSpec,
     JobState,
     ModelCandidate,
+    OperationalError,
     OwnerScope,
     PromotionPolicy,
     ResourceLimits,
@@ -17,7 +26,26 @@ from .contracts import (
     canonical_json,
     semantic_hash,
 )
-from .registry import DeploymentReceipt, DeploymentRegistry
+from .integrity import (
+    IntegrityFinding,
+    IntegrityIssue,
+    IntegrityReport,
+    check_registry_integrity,
+)
+from .monitoring import (
+    MONITORING_SCHEMA_VERSION,
+    DeploymentMonitor,
+    EnforcementAction,
+    EnforcementReceipt,
+    HealthAssessment,
+    HealthObservation,
+    HealthState,
+    MetricAssessment,
+    MetricThreshold,
+    MonitoringPolicy,
+    ThresholdDirection,
+)
+from .registry import DeploymentReceipt, DeploymentRegistry, QuarantineRecord
 from .runner import DurableLocalRunner, JobRecord, Lease
 from .worker import (
     CooperativeCancellation,
@@ -33,32 +61,55 @@ from .worker import (
 )
 
 __all__ = [
+    "ArchitectureEpochPin",
     "ArtifactRef",
     "CapabilityRef",
     "CooperativeCancellation",
     "DeploymentReceipt",
     "DeploymentRegistry",
+    "DeploymentMonitor",
     "DurableLocalRunner",
     "EvidenceKind",
     "EvidenceReceipt",
+    "EnforcementAction",
+    "EnforcementReceipt",
+    "EvaluationAttestation",
+    "GovernedAdoptionPolicy",
+    "GovernedAdoptionReceipt",
+    "GovernedDeploymentRegistry",
     "HandlerFailure",
     "HandlerResult",
+    "HealthAssessment",
+    "HealthObservation",
+    "HealthState",
+    "IntegrityFinding",
+    "IntegrityIssue",
+    "IntegrityReport",
     "InvocationSpec",
     "JobRecord",
     "JobSpec",
     "JobState",
     "Lease",
+    "LifecycleAuthorization",
     "LocalArtifactStore",
+    "MONITORING_SCHEMA_VERSION",
+    "MetricAssessment",
+    "MetricThreshold",
     "ModelCandidate",
+    "OperationalError",
     "OwnerScope",
+    "MonitoringPolicy",
     "PromotionPolicy",
     "ResourceLimits",
     "RetryPolicy",
+    "QuarantineRecord",
+    "ThresholdDirection",
     "WorkOutcome",
     "WorkReport",
     "WorkerContext",
     "WorkerHandler",
     "canonical_json",
+    "check_registry_integrity",
     "drain",
     "run_forever",
     "run_once",

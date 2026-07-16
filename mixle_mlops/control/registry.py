@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,46 @@ class DeploymentReceipt:
     actor: str
     evidence_receipt_ids: tuple[str, ...]
     reason: str | None = None
+    assessment_id: str | None = None
+    policy_id: str | None = None
+    authorization_id: str | None = None
+
+
+@dataclass(frozen=True)
+class QuarantineRecord:
+    candidate_id: str
+    deployment_sequence: int
+    actor: str
+    reason: str
+    incident_id: str
+    policy_id: str
+    authorization_id: str
+    quarantined_at: str
+
+    def __post_init__(self) -> None:
+        for value, label in (
+            (self.candidate_id, "quarantine candidate id"),
+            (self.actor, "quarantine actor"),
+            (self.reason, "quarantine reason"),
+            (self.incident_id, "quarantine incident id"),
+            (self.policy_id, "quarantine policy id"),
+            (self.authorization_id, "quarantine authorization id"),
+            (self.quarantined_at, "quarantine timestamp"),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise OperationalError(f"{label} must be non-empty")
+        if (
+            not isinstance(self.deployment_sequence, int)
+            or isinstance(self.deployment_sequence, bool)
+            or self.deployment_sequence < 0
+        ):
+            raise OperationalError("quarantine deployment sequence must be a non-negative integer")
+        try:
+            timestamp = datetime.fromisoformat(self.quarantined_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise OperationalError("quarantine timestamp must be RFC 3339") from exc
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+            raise OperationalError("quarantine timestamp must include a timezone")
 
 
 class DeploymentRegistry:
@@ -41,6 +82,7 @@ class DeploymentRegistry:
         self._aliases: dict[str, str] = {}
         self._previous: dict[str, str] = {}
         self._receipts: list[DeploymentReceipt] = []
+        self._quarantines: dict[str, QuarantineRecord] = {}
         self._load()
 
     @staticmethod
@@ -74,6 +116,9 @@ class DeploymentRegistry:
             DeploymentReceipt(**{**item, "evidence_receipt_ids": tuple(item["evidence_receipt_ids"])})
             for item in value.get("receipts", [])
         ]
+        self._quarantines = {key: QuarantineRecord(**item) for key, item in value.get("quarantines", {}).items()}
+        if any(key != item.candidate_id or key not in self._candidates for key, item in self._quarantines.items()):
+            raise OperationalError("deployment registry contains an invalid quarantine record")
 
     def _write(self) -> None:
         rendered = (
@@ -84,6 +129,7 @@ class DeploymentRegistry:
                     "aliases": self._aliases,
                     "previous": self._previous,
                     "receipts": self._receipts,
+                    "quarantines": self._quarantines,
                 }
             )
             + "\n"
@@ -109,9 +155,39 @@ class DeploymentRegistry:
 
     def resolve(self, alias: str) -> ModelCandidate:
         try:
-            return self.candidate(self._aliases[alias])
+            identifier = self._aliases[alias]
         except KeyError as exc:
             raise KeyError(alias) from exc
+        if identifier in self._quarantines:
+            raise OperationalError(f"candidate {identifier!r} is quarantined")
+        return self.candidate(identifier)
+
+    def deployment(self, alias: str, *, allow_quarantined: bool = False) -> DeploymentReceipt:
+        try:
+            candidate_id = self._aliases[alias]
+        except KeyError as exc:
+            raise KeyError(alias) from exc
+        if not allow_quarantined and candidate_id in self._quarantines:
+            raise OperationalError(f"candidate {candidate_id!r} is quarantined")
+        try:
+            return next(
+                item
+                for item in reversed(self._receipts)
+                if item.alias == alias
+                and item.candidate_id == candidate_id
+                and item.action in {"promote", "rollback"}
+            )
+        except StopIteration as exc:
+            raise OperationalError("alias has no deployment receipt") from exc
+
+    def rollback_target(self, alias: str) -> ModelCandidate:
+        current = self._aliases.get(alias)
+        previous = self._previous.get(alias)
+        if current is None or previous is None:
+            raise OperationalError("alias has no rollback candidate")
+        if previous in self._quarantines:
+            raise OperationalError("rollback candidate is quarantined")
+        return self.candidate(previous)
 
     @staticmethod
     def _verify(
@@ -149,6 +225,8 @@ class DeploymentRegistry:
         if alias not in policy.aliases:
             raise OperationalError("alias is not allowed by promotion policy")
         candidate = self.candidate(candidate_id)
+        if candidate_id in self._quarantines:
+            raise OperationalError("quarantined candidate cannot be promoted")
         receipt_ids = self._verify(candidate, evidence, policy)
         previous = self._aliases.get(alias)
         if previous == candidate_id:
@@ -173,11 +251,18 @@ class DeploymentRegistry:
         self._write()
         return receipt
 
-    def rollback(self, alias: str, *, actor: str, reason: str) -> DeploymentReceipt:
+    def rollback(
+        self,
+        alias: str,
+        *,
+        actor: str,
+        reason: str,
+        assessment_id: str | None = None,
+        policy_id: str | None = None,
+        authorization_id: str | None = None,
+    ) -> DeploymentReceipt:
         current = self._aliases.get(alias)
-        previous = self._previous.get(alias)
-        if current is None or previous is None:
-            raise OperationalError("alias has no rollback candidate")
+        previous = self.rollback_target(alias).id
         self._aliases[alias] = previous
         self._previous[alias] = current
         receipt = DeploymentReceipt(
@@ -189,6 +274,9 @@ class DeploymentRegistry:
             actor,
             (),
             reason,
+            assessment_id,
+            policy_id,
+            authorization_id,
         )
         self._receipts.append(receipt)
         self._write()
@@ -197,9 +285,90 @@ class DeploymentRegistry:
     def mark_unhealthy(self, alias: str, *, actor: str, incident_id: str) -> DeploymentReceipt:
         return self.rollback(alias, actor=actor, reason=f"automatic bounded rollback for incident {incident_id}")
 
+    def quarantine(
+        self,
+        candidate_id: str,
+        *,
+        deployment_sequence: int,
+        actor: str,
+        reason: str,
+        incident_id: str,
+        policy_id: str,
+        authorization_id: str,
+        quarantined_at: str,
+    ) -> QuarantineRecord:
+        self.candidate(candidate_id)
+        for value, label in (
+            (actor, "quarantine actor"),
+            (reason, "quarantine reason"),
+            (incident_id, "incident id"),
+            (policy_id, "monitoring policy id"),
+            (authorization_id, "monitoring authorization id"),
+            (quarantined_at, "quarantine timestamp"),
+        ):
+            if not value or not value.strip():
+                raise OperationalError(f"{label} must be non-empty")
+        if (
+            not isinstance(deployment_sequence, int)
+            or isinstance(deployment_sequence, bool)
+            or deployment_sequence < 0
+        ):
+            raise OperationalError("deployment sequence must be a non-negative integer")
+        if not any(
+            item.sequence == deployment_sequence and item.candidate_id == candidate_id for item in self._receipts
+        ):
+            raise OperationalError("quarantine does not identify a registered deployment receipt")
+        record = QuarantineRecord(
+            candidate_id,
+            deployment_sequence,
+            actor,
+            reason,
+            incident_id,
+            policy_id,
+            authorization_id,
+            quarantined_at,
+        )
+        existing = self._quarantines.get(candidate_id)
+        if existing is not None:
+            if (
+                existing.deployment_sequence != deployment_sequence
+                or existing.incident_id != incident_id
+                or existing.policy_id != policy_id
+                or existing.authorization_id != authorization_id
+            ):
+                raise OperationalError("candidate is already quarantined by a different incident")
+            return existing
+        self._quarantines[candidate_id] = record
+        self._write()
+        return record
+
+    def quarantine_record(self, candidate_id: str) -> QuarantineRecord | None:
+        return self._quarantines.get(candidate_id)
+
+    def receipt_for_assessment(self, assessment_id: str) -> DeploymentReceipt | None:
+        return next(
+            (item for item in reversed(self._receipts) if item.assessment_id == assessment_id),
+            None,
+        )
+
     @property
     def receipts(self) -> tuple[DeploymentReceipt, ...]:
         return tuple(self._receipts)
 
+    @property
+    def candidates(self) -> tuple[ModelCandidate, ...]:
+        """Every candidate ever registered, independent of whether it is currently aliased."""
+        return tuple(self._candidates.values())
 
-__all__ = ["DeploymentReceipt", "DeploymentRegistry"]
+    @property
+    def aliases(self) -> dict[str, str]:
+        """A copy of the live alias -> candidate id projection; mutating it does not affect the registry."""
+        return dict(self._aliases)
+
+    @property
+    def previous(self) -> dict[str, str]:
+        """A copy of the live alias -> prior candidate id projection used by `rollback`."""
+        return dict(self._previous)
+
+
+__all__ = ["DeploymentReceipt", "DeploymentRegistry", "QuarantineRecord"]

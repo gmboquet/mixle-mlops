@@ -3,12 +3,21 @@
 The 0.8 operational kernel gives all Mixle semantic owners one provider-neutral execution boundary: owner-scoped
 artifacts, immutable invocation identity, jobs and runs, leases, idempotency, bounded events, cancellation,
 checkpoints, retry/recovery, result receipts, model candidates, evidence-gated promotion, deployments, and rollback.
+The deployment monitor adds typed operational thresholds, exact deployment-bound observations, deterministic bounded
+window assessments, durable incidents, candidate quarantine, and stale-safe policy-authorized rollback.
 Operational success is stamped `not_evaluated`; it never implies that a scientific result is correct.
 
 `DurableLocalRunner` is the single-node reference implementation. It survives process restart, detects expired leases
 and checkpoint tampering, preserves semantic hashes across retries, and isolates organization/project data.
 `DeploymentRegistry` accepts immutable candidates only when exact trusted factory and harness receipts cover the same
-artifact and required suites; failed deployments roll back through an auditable registry event.
+artifact and required suites; failed deployments roll back through an auditable registry event. Monitoring never turns
+latency, errors, drift, or model confidence into a scientific verdict: it applies only an operator-authorized
+operational safety action to the exact deployed candidate and preserves the incident identity.
+`check_registry_integrity` (`mixle_mlops.control.integrity`) is a read-only auditor over that registry: it replays the
+receipt log and compares it against the live alias state, flags any dangling alias or "previous" pointer, and --
+when handed an artifact store -- verifies every candidate's artifact is still present and byte-exact. It never mutates
+the registry; it only tells you whether the bookkeeping a crash or a hand-edited file could have disturbed still
+agrees with itself.
 
 The packaged `control_surface_manifest.json` classifies the older broad runtime as supported, partial, experimental,
 compatibility, or application-specific and assigns migration owners. The gateway and integrations below remain useful,
