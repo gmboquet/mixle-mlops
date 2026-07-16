@@ -19,15 +19,30 @@ from .contracts import (
 )
 from .registry import DeploymentReceipt, DeploymentRegistry
 from .runner import DurableLocalRunner, JobRecord, Lease
+from .worker import (
+    CooperativeCancellation,
+    HandlerFailure,
+    HandlerResult,
+    WorkerContext,
+    WorkerHandler,
+    WorkOutcome,
+    WorkReport,
+    drain,
+    run_forever,
+    run_once,
+)
 
 __all__ = [
     "ArtifactRef",
     "CapabilityRef",
+    "CooperativeCancellation",
     "DeploymentReceipt",
     "DeploymentRegistry",
     "DurableLocalRunner",
     "EvidenceKind",
     "EvidenceReceipt",
+    "HandlerFailure",
+    "HandlerResult",
     "InvocationSpec",
     "JobRecord",
     "JobSpec",
@@ -39,6 +54,13 @@ __all__ = [
     "PromotionPolicy",
     "ResourceLimits",
     "RetryPolicy",
+    "WorkOutcome",
+    "WorkReport",
+    "WorkerContext",
+    "WorkerHandler",
     "canonical_json",
+    "drain",
+    "run_forever",
+    "run_once",
     "semantic_hash",
 ]
