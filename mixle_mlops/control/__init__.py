@@ -17,7 +17,20 @@ from .contracts import (
     canonical_json,
     semantic_hash,
 )
-from .registry import DeploymentReceipt, DeploymentRegistry
+from .monitoring import (
+    MONITORING_SCHEMA_VERSION,
+    DeploymentMonitor,
+    EnforcementAction,
+    EnforcementReceipt,
+    HealthAssessment,
+    HealthObservation,
+    HealthState,
+    MetricAssessment,
+    MetricThreshold,
+    MonitoringPolicy,
+    ThresholdDirection,
+)
+from .registry import DeploymentReceipt, DeploymentRegistry, QuarantineRecord
 from .runner import DurableLocalRunner, JobRecord, Lease
 
 __all__ = [
@@ -25,20 +38,32 @@ __all__ = [
     "CapabilityRef",
     "DeploymentReceipt",
     "DeploymentRegistry",
+    "DeploymentMonitor",
     "DurableLocalRunner",
     "EvidenceKind",
     "EvidenceReceipt",
+    "EnforcementAction",
+    "EnforcementReceipt",
+    "HealthAssessment",
+    "HealthObservation",
+    "HealthState",
     "InvocationSpec",
     "JobRecord",
     "JobSpec",
     "JobState",
     "Lease",
     "LocalArtifactStore",
+    "MONITORING_SCHEMA_VERSION",
+    "MetricAssessment",
+    "MetricThreshold",
     "ModelCandidate",
     "OwnerScope",
+    "MonitoringPolicy",
     "PromotionPolicy",
     "ResourceLimits",
     "RetryPolicy",
+    "QuarantineRecord",
+    "ThresholdDirection",
     "canonical_json",
     "semantic_hash",
 ]
