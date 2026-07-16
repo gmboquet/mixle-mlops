@@ -9,6 +9,18 @@ a chat UI + landing page, and a principled (mixle-powered) RLHF feedback loop. S
 """
 
 from .context_handoff import ContextEvent, ContextRun, ContextRunState, ContextRunStore, bundle_digest
+from .architecture import (
+    ArchitectureTransitionController,
+    ArchitectureTransitionError,
+    ConsumerMigration,
+    DualRunPolicy,
+    MigrationPlan,
+    ProviderContract,
+    RollbackPlan,
+    TransitionAuthorization,
+    TransitionReceipt,
+    TransitionState,
+)
 from .control import (
     DeploymentMonitor,
     DeploymentRegistry,
@@ -30,12 +42,16 @@ __version__ = "0.8.0.dev0"
 
 __all__ = [
     "ContextEvent",
+    "ArchitectureTransitionController",
+    "ArchitectureTransitionError",
+    "ConsumerMigration",
     "ContextRun",
     "ContextRunState",
     "ContextRunStore",
     "DeploymentRegistry",
     "DeploymentMonitor",
     "DurableLocalRunner",
+    "DualRunPolicy",
     "EvidenceReceipt",
     "EnforcementAction",
     "HealthObservation",
@@ -43,9 +59,15 @@ __all__ = [
     "JobSpec",
     "LocalArtifactStore",
     "ModelCandidate",
+    "MigrationPlan",
     "MonitoringPolicy",
     "MetricThreshold",
     "PromotionPolicy",
+    "ProviderContract",
+    "RollbackPlan",
     "ThresholdDirection",
+    "TransitionAuthorization",
+    "TransitionReceipt",
+    "TransitionState",
     "bundle_digest",
 ]
