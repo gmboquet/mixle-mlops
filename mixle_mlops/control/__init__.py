@@ -1,5 +1,13 @@
 """Stable operational contracts, durable local execution, and governed deployment."""
 
+from .adoption import (
+    ArchitectureEpochPin,
+    EvaluationAttestation,
+    GovernedAdoptionPolicy,
+    GovernedAdoptionReceipt,
+    GovernedDeploymentRegistry,
+    LifecycleAuthorization,
+)
 from .artifacts import LocalArtifactStore
 from .contracts import (
     ArtifactRef,
@@ -10,6 +18,7 @@ from .contracts import (
     JobSpec,
     JobState,
     ModelCandidate,
+    OperationalError,
     OwnerScope,
     PromotionPolicy,
     ResourceLimits,
@@ -34,6 +43,7 @@ from .registry import DeploymentReceipt, DeploymentRegistry, QuarantineRecord
 from .runner import DurableLocalRunner, JobRecord, Lease
 
 __all__ = [
+    "ArchitectureEpochPin",
     "ArtifactRef",
     "CapabilityRef",
     "DeploymentReceipt",
@@ -44,6 +54,10 @@ __all__ = [
     "EvidenceReceipt",
     "EnforcementAction",
     "EnforcementReceipt",
+    "EvaluationAttestation",
+    "GovernedAdoptionPolicy",
+    "GovernedAdoptionReceipt",
+    "GovernedDeploymentRegistry",
     "HealthAssessment",
     "HealthObservation",
     "HealthState",
@@ -52,11 +66,13 @@ __all__ = [
     "JobSpec",
     "JobState",
     "Lease",
+    "LifecycleAuthorization",
     "LocalArtifactStore",
     "MONITORING_SCHEMA_VERSION",
     "MetricAssessment",
     "MetricThreshold",
     "ModelCandidate",
+    "OperationalError",
     "OwnerScope",
     "MonitoringPolicy",
     "PromotionPolicy",
