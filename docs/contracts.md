@@ -22,3 +22,10 @@ Observations bind metrics to the exact alias, candidate, and deployment sequence
 observation ids and hashes, the complete policy, per-metric missing and breach counts, state, and action. Missing required
 metrics count as breaches; insufficient evidence is never reported as healthy. Quarantine and rollback retain incident, policy,
 authorization, actor, unhealthy candidate, replacement candidate, and registry receipt identity.
+
+`check_registry_integrity` produces an `IntegrityReport` (`checked_candidates`, `checked_receipts`, `checked_aliases`,
+`checked_artifacts`, `issues`) -- a derived, in-memory value, not part of the durable schema `1.0.0` payload.
+`checked_artifacts` is `None`, not zero, when no artifact store was supplied, so a clean report never implies
+artifacts were verified unless it also says how many. Each `IntegrityIssue` names a typed `IntegrityFinding` (dangling
+alias/previous, unknown receipt candidate or action, sequence gap/duplicate, projection drift, missing or
+digest-mismatched artifact), a subject, and a human-readable detail.

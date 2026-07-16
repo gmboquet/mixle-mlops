@@ -10,3 +10,8 @@ identity, stale deployment bindings, unknown or non-unhealthy assessments, quara
 re-promote quarantined candidates. A policy stores an authorization identity, but this local reference does not verify
 its issuer, signature, expiry, or revocation; governed adoption must do that before installing the policy. The local JSON
 ledgers use atomic replacement but do not provide multi-process locking or tamper signatures.
+
+The integrity checker only reads `deployments.json` and, optionally, artifact bytes for digest verification; it never
+writes to either and needs no access beyond what reading the registry already requires. Findings are returned as
+data, not raised as exceptions, so a corrupted registry cannot be mistaken for a crashed check -- but the checker
+itself does not repair, quarantine, or roll back anything it finds wrong.

@@ -28,6 +28,7 @@ from .control import (
     DurableLocalRunner,
     EnforcementAction,
     EvidenceReceipt,
+    IntegrityReport,
     EvaluationAttestation,
     GovernedAdoptionPolicy,
     GovernedAdoptionReceipt,
@@ -40,6 +41,7 @@ from .control import (
     ModelCandidate,
     MonitoringPolicy,
     PromotionPolicy,
+    check_registry_integrity,
     MetricThreshold,
     ThresholdDirection,
 )
@@ -66,6 +68,7 @@ __all__ = [
     "GovernedAdoptionReceipt",
     "GovernedDeploymentRegistry",
     "HealthObservation",
+    "IntegrityReport",
     "InvocationSpec",
     "JobSpec",
     "LocalArtifactStore",
@@ -82,4 +85,5 @@ __all__ = [
     "TransitionReceipt",
     "TransitionState",
     "bundle_digest",
+    "check_registry_integrity",
 ]

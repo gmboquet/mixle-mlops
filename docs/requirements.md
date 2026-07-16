@@ -12,3 +12,8 @@
   external authorization that the installing control plane must verify.
 - Unhealthy candidates remain quarantined across restart and cannot be resolved, promoted, or selected as rollback
   targets without a future separately governed recovery protocol.
+- Registry state must be independently auditable for internal consistency (receipt-log replay agreement, no dangling
+  alias/previous pointer, no receipt naming an unregistered candidate, no sequence corruption) without mutating it or
+  requiring the running service.
+- Artifact-presence and digest verification during an audit is explicit and opt-in, never implied by a report that
+  did not perform it.

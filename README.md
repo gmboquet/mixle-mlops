@@ -13,6 +13,11 @@ and checkpoint tampering, preserves semantic hashes across retries, and isolates
 artifact and required suites; failed deployments roll back through an auditable registry event. Monitoring never turns
 latency, errors, drift, or model confidence into a scientific verdict: it applies only an operator-authorized
 operational safety action to the exact deployed candidate and preserves the incident identity.
+`check_registry_integrity` (`mixle_mlops.control.integrity`) is a read-only auditor over that registry: it replays the
+receipt log and compares it against the live alias state, flags any dangling alias or "previous" pointer, and --
+when handed an artifact store -- verifies every candidate's artifact is still present and byte-exact. It never mutates
+the registry; it only tells you whether the bookkeeping a crash or a hand-edited file could have disturbed still
+agrees with itself.
 
 The packaged `control_surface_manifest.json` classifies the older broad runtime as supported, partial, experimental,
 compatibility, or application-specific and assigns migration owners. The gateway and integrations below remain useful,

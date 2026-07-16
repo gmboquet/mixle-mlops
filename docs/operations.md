@@ -14,3 +14,8 @@ state. Quarantine fails closed; there is intentionally no automatic unquarantine
 databases, alerts, dashboards, statistical detectors, canary traffic control, and SLO automation remain later work.
 If rollback has no known non-quarantined predecessor, enforcement leaves the unhealthy candidate quarantined and
 returns an explicit failure instead of continuing to serve it or inventing a target.
+
+Run `python -m mixle_mlops.control.integrity <registry-root> [--artifacts-root <path>]` after a suspected crash
+mid-write, before trusting a hand-recovered `deployments.json`, or on a schedule; it exits `0` when clean and `1`
+when it finds any issue, printing one line per finding. It only reads state -- a nonzero exit is a signal to
+investigate and, if warranted, roll back or restore from backup, not an action the checker takes itself.

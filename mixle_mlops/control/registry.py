@@ -355,5 +355,20 @@ class DeploymentRegistry:
     def receipts(self) -> tuple[DeploymentReceipt, ...]:
         return tuple(self._receipts)
 
+    @property
+    def candidates(self) -> tuple[ModelCandidate, ...]:
+        """Every candidate ever registered, independent of whether it is currently aliased."""
+        return tuple(self._candidates.values())
+
+    @property
+    def aliases(self) -> dict[str, str]:
+        """A copy of the live alias -> candidate id projection; mutating it does not affect the registry."""
+        return dict(self._aliases)
+
+    @property
+    def previous(self) -> dict[str, str]:
+        """A copy of the live alias -> prior candidate id projection used by `rollback`."""
+        return dict(self._previous)
+
 
 __all__ = ["DeploymentReceipt", "DeploymentRegistry", "QuarantineRecord"]

@@ -18,7 +18,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --no-deps -e .
       - run: python -m pip install pytest ruff==0.15.17 build
-      - run: ruff format --check mixle_mlops/control mixle_mlops/__init__.py tests/test_control_runtime.py tests/test_control_registry.py
-      - run: ruff check mixle_mlops/control mixle_mlops/__init__.py tests/test_control_runtime.py tests/test_control_registry.py
-      - run: pytest -q tests/test_control_runtime.py tests/test_control_registry.py tests/test_context_handoff.py
+      - run: ruff format --check mixle_mlops/control mixle_mlops/__init__.py tests/test_control_runtime.py tests/test_control_registry.py tests/test_control_integrity.py
+      - run: ruff check mixle_mlops/control mixle_mlops/__init__.py tests/test_control_runtime.py tests/test_control_registry.py tests/test_control_integrity.py
+      - run: pytest -q tests/test_control_runtime.py tests/test_control_registry.py tests/test_control_integrity.py tests/test_context_handoff.py
       - run: python -m build

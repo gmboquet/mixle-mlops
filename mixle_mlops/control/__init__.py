@@ -26,6 +26,12 @@ from .contracts import (
     canonical_json,
     semantic_hash,
 )
+from .integrity import (
+    IntegrityFinding,
+    IntegrityIssue,
+    IntegrityReport,
+    check_registry_integrity,
+)
 from .monitoring import (
     MONITORING_SCHEMA_VERSION,
     DeploymentMonitor,
@@ -61,6 +67,9 @@ __all__ = [
     "HealthAssessment",
     "HealthObservation",
     "HealthState",
+    "IntegrityFinding",
+    "IntegrityIssue",
+    "IntegrityReport",
     "InvocationSpec",
     "JobRecord",
     "JobSpec",
@@ -81,5 +90,6 @@ __all__ = [
     "QuarantineRecord",
     "ThresholdDirection",
     "canonical_json",
+    "check_registry_integrity",
     "semantic_hash",
 ]
