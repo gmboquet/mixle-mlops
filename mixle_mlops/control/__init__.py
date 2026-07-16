@@ -47,11 +47,24 @@ from .monitoring import (
 )
 from .registry import DeploymentReceipt, DeploymentRegistry, QuarantineRecord
 from .runner import DurableLocalRunner, JobRecord, Lease
+from .worker import (
+    CooperativeCancellation,
+    HandlerFailure,
+    HandlerResult,
+    WorkerContext,
+    WorkerHandler,
+    WorkOutcome,
+    WorkReport,
+    drain,
+    run_forever,
+    run_once,
+)
 
 __all__ = [
     "ArchitectureEpochPin",
     "ArtifactRef",
     "CapabilityRef",
+    "CooperativeCancellation",
     "DeploymentReceipt",
     "DeploymentRegistry",
     "DeploymentMonitor",
@@ -64,6 +77,8 @@ __all__ = [
     "GovernedAdoptionPolicy",
     "GovernedAdoptionReceipt",
     "GovernedDeploymentRegistry",
+    "HandlerFailure",
+    "HandlerResult",
     "HealthAssessment",
     "HealthObservation",
     "HealthState",
@@ -89,7 +104,14 @@ __all__ = [
     "RetryPolicy",
     "QuarantineRecord",
     "ThresholdDirection",
+    "WorkOutcome",
+    "WorkReport",
+    "WorkerContext",
+    "WorkerHandler",
     "canonical_json",
     "check_registry_integrity",
+    "drain",
+    "run_forever",
+    "run_once",
     "semantic_hash",
 ]
