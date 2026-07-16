@@ -6,6 +6,12 @@ verification verdicts to Harness; knowledge semantics to Knowledge; domain physi
 application-specific biodiversity code to Demos/plugins. MLOps retains hosted adapters, execution, storage, serving,
 monitoring, and compatibility windows until each public replacement passes migration fixtures.
 
+Registry files written before monitoring omit `quarantines`; they load as an empty quarantine map. Existing candidate,
+alias, evidence, promotion, rollback, and receipt fields remain valid, and new monitoring metadata on rollback receipts
+is optional. Once a candidate is quarantined, older software that ignores quarantine state must not operate the same
+registry file; rollback is to revert the code and restore a pre-quarantine registry backup, not silently discard the
+incident.
+
 The integrity checker reads only the existing `deployments.json`/artifact-store schema; it introduces no new
 persisted fields and requires no migration. It is safe to run against a registry written by any prior control-kernel
 release, including one predating this checker.

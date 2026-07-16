@@ -1,5 +1,13 @@
 """Stable operational contracts, durable local execution, and governed deployment."""
 
+from .adoption import (
+    ArchitectureEpochPin,
+    EvaluationAttestation,
+    GovernedAdoptionPolicy,
+    GovernedAdoptionReceipt,
+    GovernedDeploymentRegistry,
+    LifecycleAuthorization,
+)
 from .artifacts import LocalArtifactStore
 from .contracts import (
     ArtifactRef,
@@ -10,6 +18,7 @@ from .contracts import (
     JobSpec,
     JobState,
     ModelCandidate,
+    OperationalError,
     OwnerScope,
     PromotionPolicy,
     ResourceLimits,
@@ -23,17 +32,41 @@ from .integrity import (
     IntegrityReport,
     check_registry_integrity,
 )
-from .registry import DeploymentReceipt, DeploymentRegistry
+from .monitoring import (
+    MONITORING_SCHEMA_VERSION,
+    DeploymentMonitor,
+    EnforcementAction,
+    EnforcementReceipt,
+    HealthAssessment,
+    HealthObservation,
+    HealthState,
+    MetricAssessment,
+    MetricThreshold,
+    MonitoringPolicy,
+    ThresholdDirection,
+)
+from .registry import DeploymentReceipt, DeploymentRegistry, QuarantineRecord
 from .runner import DurableLocalRunner, JobRecord, Lease
 
 __all__ = [
+    "ArchitectureEpochPin",
     "ArtifactRef",
     "CapabilityRef",
     "DeploymentReceipt",
     "DeploymentRegistry",
+    "DeploymentMonitor",
     "DurableLocalRunner",
     "EvidenceKind",
     "EvidenceReceipt",
+    "EnforcementAction",
+    "EnforcementReceipt",
+    "EvaluationAttestation",
+    "GovernedAdoptionPolicy",
+    "GovernedAdoptionReceipt",
+    "GovernedDeploymentRegistry",
+    "HealthAssessment",
+    "HealthObservation",
+    "HealthState",
     "IntegrityFinding",
     "IntegrityIssue",
     "IntegrityReport",
@@ -42,12 +75,20 @@ __all__ = [
     "JobSpec",
     "JobState",
     "Lease",
+    "LifecycleAuthorization",
     "LocalArtifactStore",
+    "MONITORING_SCHEMA_VERSION",
+    "MetricAssessment",
+    "MetricThreshold",
     "ModelCandidate",
+    "OperationalError",
     "OwnerScope",
+    "MonitoringPolicy",
     "PromotionPolicy",
     "ResourceLimits",
     "RetryPolicy",
+    "QuarantineRecord",
+    "ThresholdDirection",
     "canonical_json",
     "check_registry_integrity",
     "semantic_hash",

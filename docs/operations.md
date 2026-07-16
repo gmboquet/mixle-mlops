@@ -6,6 +6,15 @@ lease token. Results and checkpoints are immutable. The deployment registry keep
 health incidents may trigger one bounded rollback. Distributed queues, databases, object stores, streaming, and SLO
 automation remain later work.
 
+The reference monitoring ledger is single-node and atomically persisted. Record observations only after resolving the
+current deployment receipt, assess with a named authorization-bearing policy, and enforce only the returned persisted
+unhealthy assessment id. Repeating completed enforcement returns its original receipt. If a process stops after registry
+quarantine or rollback but before the monitoring receipt is written, retrying reconstructs the receipt from registry
+state. Quarantine fails closed; there is intentionally no automatic unquarantine. Distributed telemetry, locks,
+databases, alerts, dashboards, statistical detectors, canary traffic control, and SLO automation remain later work.
+If rollback has no known non-quarantined predecessor, enforcement leaves the unhealthy candidate quarantined and
+returns an explicit failure instead of continuing to serve it or inventing a target.
+
 Run `python -m mixle_mlops.control.integrity <registry-root> [--artifacts-root <path>]` after a suspected crash
 mid-write, before trusting a hand-recovered `deployments.json`, or on a schedule; it exits `0` when clean and `1`
 when it finds any issue, printing one line per finding. It only reads state -- a nonzero exit is a signal to
