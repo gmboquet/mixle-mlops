@@ -267,12 +267,58 @@ def build_synthetic_survey(rng: np.random.Generator) -> dict[str, Any]:
 
 
 def register_dataset(dataset: dict[str, Any]) -> str:
-    """Fingerprint + store a synthetic dataset, returning its content-hashed ``dataset_ref`` (the string
-    handle ``run_inversion`` takes, mirroring how a real deployment resolves a ``dataset_ref`` through a
-    registry keyed by :func:`mixle.data.hashing.dataset_hash`)."""
-    ref = dataset_hash(dataset["data"].tolist())
-    _DATASET_STORE[ref] = dataset
-    return ref
+    """Fingerprint + persist a synthetic dataset, returning its content-hashed ``dataset_ref`` (the
+    string handle ``run_inversion`` takes).
+
+    Writes the frozen-shape minimal JSON bundle ``mixle_pde.tools._load_dataset_bundle`` reads
+    (``{grid: {coordinates, spacing, units, property_name, cell_volumes}, observations: [{location,
+    value, noise_cov, units}]}``, see that function's docstring) to a real file under a
+    content-hash-keyed path, so ``dataset_ref`` resolves for BOTH consumers: the real, already-shipped
+    ``mixle_pde.tools.run_inversion`` (E4 -- it ``open()``s ``dataset_ref`` directly, the same way
+    ``mixle-pde/tests/tools_test.py``'s own ``_tiny_gravity_dataset`` fixture does; there is no
+    dataset-artifact registry for it to resolve a bare hash through) and this module's own
+    local-stand-in ``_run_inversion``/``main()`` walkthrough (which still look the full dataset --
+    including the precomputed sensitivity matrix ``G`` that no minimal JSON bundle carries -- up in
+    ``_DATASET_STORE`` by this same ``dataset_ref`` string).
+
+    Before E4 landed in mixle-pde, this returned a bare :func:`mixle.data.hashing.dataset_hash` digest
+    backed by nothing but ``_DATASET_STORE``, on the theory that it mirrors how a real deployment
+    would resolve a ``dataset_ref`` through a registry keyed by that hash -- but no such registry has
+    ever existed anywhere upstream, and once the real ``run_inversion`` landed (merged ~40 minutes
+    after this module, per git history -- the two PRs were in flight at the same time and never
+    reconciled), a bare hash stopped being openable, breaking every seam-test path that exercises the
+    real tool. Keying the file's path by the hash keeps the handle content-derived (registering an
+    identical dataset twice is idempotent: same bytes in, same path out) while also being a real,
+    ``open()``-able file, mirroring ``mixle_pde.io.artifacts``'s own posterior_ref pattern (a real path
+    plus a separately-derivable content hash) rather than inventing a new convention.
+    """
+    n = dataset["cells"].shape[0]
+    bundle = {
+        "grid": {
+            "coordinates": dataset["cells"].tolist(),
+            "spacing": float(dataset["spacing"]),
+            "units": "kg/m^3",
+            "property_name": "density_contrast",
+            "cell_volumes": [float(dataset["volume"])] * n,
+        },
+        "observations": [
+            {
+                "location": dataset["obs"].tolist(),
+                "value": dataset["data"].tolist(),
+                "noise_cov": [float(dataset["noise_std"]) ** 2] * int(dataset["data"].size),
+                "units": "mGal",
+            }
+        ],
+    }
+    content_ref = dataset_hash(dataset["data"].tolist())
+    workdir = Path(tempfile.gettempdir()) / "mixle_e11_datasets" / content_ref
+    workdir.mkdir(parents=True, exist_ok=True)
+    path = str(workdir / "dataset.json")
+    with open(path, "w") as f:
+        json.dump(bundle, f)
+
+    _DATASET_STORE[path] = dataset
+    return path
 
 
 def _run_inversion(dataset_ref: str, modality: str, prior: str, config: dict | None = None) -> dict:
