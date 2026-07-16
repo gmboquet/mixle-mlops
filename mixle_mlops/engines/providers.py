@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Sequence
 
 import numpy as np
@@ -141,18 +142,29 @@ class TreeLogitProvider:
 
     # --- KV (de)hydration across transformers versions ---
     def _fresh_past(self, stored):
-        """A fresh Cache object over the stored (immutable) legacy tuples -- safe to reuse across branches."""
-        try:
-            from transformers.cache_utils import DynamicCache
+        """An independent copy of ``stored``, safe to extend in one branch without mutating the ancestor
+        node other sibling branches will resume from.
 
-            return DynamicCache.from_legacy_cache(stored)
-        except Exception:  # older transformers take legacy tuples directly
-            return stored
+        Modern ``transformers`` (``Cache``/``DynamicCache``) objects mutate their internal tensors in place
+        on every forward pass -- ``update()`` appends the new step directly into the cache's own storage.
+        ``self._nodes[ancestor_key]`` holds a *reference* to that object, so handing it to the model
+        unmodified would let each explored child silently grow the SAME ancestor cache: a second sibling
+        branch would resume from the first sibling's already-extended (and therefore wrong) KV state, and
+        the accumulated length can eventually exceed the model's ``n_positions`` -- an ``IndexError`` out of
+        the position-embedding table, or silently wrong logits if it doesn't. A deep copy gives every branch
+        its own tensors, restoring the "resume from the ancestor, independently, every time" semantics the
+        trie is built on. (Earlier transformers exposed ``to_legacy_cache``/``from_legacy_cache`` for this;
+        both were removed upstream -- ``deepcopy`` works uniformly on the modern ``Cache`` object and on the
+        legacy plain-tuple representation alike, so one path now covers both.)
+        """
+        return copy.deepcopy(stored)
 
     @staticmethod
     def _to_stored(past):
-        to_legacy = getattr(past, "to_legacy_cache", None)
-        return to_legacy() if callable(to_legacy) else past
+        """Identity: store whatever ``past_key_values`` the model handed back. (Storing the live object is
+        fine -- it is never mutated in place anymore, since every future reader goes through
+        :meth:`_fresh_past`'s deep copy instead of the object stored here.)"""
+        return past
 
     def _root_ids(self) -> list[int]:
         return [self.bos if self.bos is not None else 0]

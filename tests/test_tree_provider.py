@@ -49,6 +49,38 @@ def test_kv_cached_logits_match_full_reencode():
         np.testing.assert_allclose(a, b, atol=1e-4, err_msg=str(p))
 
 
+def test_sibling_branches_do_not_mutate_the_shared_ancestor_cache():
+    """Regression test for the removed ``transformers`` ``DynamicCache.to_legacy_cache``/``from_legacy_cache``
+    round-trip that ``TreeLogitProvider._fresh_past`` used to rely on for a "fresh" per-branch copy.
+
+    Once those helpers were removed upstream, ``_fresh_past``'s ``except Exception`` silently fell back to
+    handing out the SAME live (mutable) ``Cache`` object every time an ancestor was resumed, instead of an
+    independent copy: exploring one child of a node grew that node's OWN stored cache in place, so every later
+    sibling silently resumed from the *first* sibling's already-extended state rather than the ancestor's.
+    A branch_cap-wide search (see ``test_bridge_end_to_end_with_mixle_stack``) routes through exactly this
+    path for every node, so the accumulated sequence length climbed past the model's ``n_positions`` with
+    enough siblings explored -- ``IndexError: index out of range in self`` out of the position-embedding
+    table (``wpe``), or silently wrong logits for prefixes that hadn't yet overflowed.
+
+    Two children of the SAME ancestor must therefore leave that ancestor's own cached KV state exactly as
+    long as it was before either child was explored.
+    """
+    model = _tiny_model()
+    tree = TreeLogitProvider(model=model)
+    tree.next_logits([3])  # caches ancestor prefix (3,)
+    ancestor_len_before = tree._nodes[(3,)][0].get_seq_length()
+
+    tree.next_logits([3, 7])  # explore one child of (3,)
+    tree.next_logits([3, 9])  # explore a SIBLING child of (3,), resuming from the same ancestor
+    tree.next_logits([3, 20])  # and a third sibling, for good measure
+
+    ancestor_len_after = tree._nodes[(3,)][0].get_seq_length()
+    assert ancestor_len_after == ancestor_len_before, (
+        f"exploring children of (3,) must not grow the ancestor's own stored KV cache "
+        f"(was {ancestor_len_before}, now {ancestor_len_after})"
+    )
+
+
 def test_incremental_positions_vs_quadratic_reencode():
     model = _tiny_model()
     depth = 10
@@ -110,8 +142,12 @@ def test_bridge_end_to_end_with_mixle_stack():
     si = SeekIndex(ar)
     seqs = si.slice(0, 5)
     assert len(seqs) == 5
-    lps = [lp for _s, lp in seqs]
-    assert lps == sorted(lps, reverse=True)
+    # Ordering is exact BETWEEN quantized fine buckets, not within one (see SeekIndex.slice's docstring):
+    # two candidates less than one bucket-width apart may surface in either relative order. Compare by fine
+    # bucket -- the same granularity the index itself sorts on -- not raw log-density, which is finer than
+    # the index's own ordering guarantee and can legitimately flip between near-tied candidates.
+    buckets = [ar.structural_fine_bucket(s, si.quantizer) for s, _lp in seqs]
+    assert buckets == sorted(buckets)
     for s, lp in seqs:
         assert abs(lp - ar.log_density(s)) < 1e-9
 
