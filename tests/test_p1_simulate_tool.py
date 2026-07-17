@@ -7,8 +7,8 @@ To exercise the mlops-side wiring end-to-end without depending on that PR's land
 a minimal in-memory stand-in for ``mixle_pde.simulation_service`` that honors the frozen IC-11
 dataclasses/functions plus the frozen IC-2 content-hashing rule -- the same technique
 ``test_e4_physics_tools.py`` uses for ``mixle_pde.tools``. Once the real ``mixle_pde.simulation_service``
-lands, ``sim_tools._load_simulation_service``'s plain ``from mixle_pde import simulation_service`` picks it up
-unchanged; nothing in ``mixle_mlops`` needs to change.
+lands, ``sim_tools._load_simulation_service``'s ``importlib.import_module("mixle_pde.simulation_service")``
+picks it up unchanged; nothing in ``mixle_mlops`` needs to change.
 """
 
 from __future__ import annotations
@@ -222,3 +222,35 @@ def test_register_sim_tools_overrides_generic_platform_simulate_tool(monkeypatch
 
     out = asyncio.run(reg.dispatch("simulate", {"scenario": {}}))  # the generic tool expects "spec", not
     assert isinstance(out, dict) and "error" in out  # "scenario" -- confirms ours answered, not it
+
+
+def test_load_simulation_service_honors_a_monkeypatched_fake_even_after_a_real_import_cached_the_attribute(
+    monkeypatch, tmp_path
+):
+    """Regression test for the mixle_pde submodule import-caching bug (distinct from #61's TreeLogitProvider
+    KV-cache bug) -- mirrors ``test_e4_physics_tools.py``'s analogous regression test, but for
+    ``_load_simulation_service``/``mixle_pde.simulation_service``.
+
+    A real ``from mixle_pde import simulation_service`` anywhere earlier in the process (e.g. this file's own
+    ``test_build_sim_tools_absent_is_a_graceful_noop``, whose probe import still runs for real even though that
+    test then skips) sets a ``simulation_service`` attribute on the ``mixle_pde`` package module. ``from
+    mixle_pde import simulation_service`` elsewhere then resolves via ``_handle_fromlist``, which skips
+    ``sys.modules`` entirely once that attribute already exists -- silently ignoring a later
+    ``monkeypatch.setitem(sys.modules, "mixle_pde.simulation_service", fake)`` and returning the real module
+    instead. Forces that poisoning inline -- rather than relying on incidental ordering against another test --
+    and asserts ``_load_simulation_service`` (which uses ``importlib.import_module`` precisely to sidestep
+    this) still picks up the fake regardless.
+    """
+    real_service = pytest.importorskip("mixle_pde.simulation_service")
+    import mixle_pde
+
+    assert mixle_pde.simulation_service is real_service  # sanity: the poisoning precondition holds
+
+    _install_fake_simulation_service(monkeypatch, str(tmp_path / "store"))
+    fake = sys.modules["mixle_pde.simulation_service"]
+
+    import mixle_mlops.mcp.sim_tools as sim_tools_mod
+
+    loaded = sim_tools_mod._load_simulation_service()
+    assert loaded is fake, "a real import earlier in the process shadowed the monkeypatched fake"
+    assert loaded is not real_service

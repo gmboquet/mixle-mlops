@@ -26,6 +26,7 @@ model-sampling ``simulate`` tool instead simply do not call ``register_sim_tools
 from __future__ import annotations
 
 import dataclasses
+import importlib
 from typing import Any
 
 from .schema_bridge import mcp_tool_to_tooldef
@@ -76,9 +77,20 @@ class SimToolsUnavailable(RuntimeError):
 def _load_simulation_service() -> Any:
     """Import ``mixle_pde.simulation_service`` (IC-11); raise :class:`SimToolsUnavailable` with an actionable
     message if the pde package/module isn't available yet. Not cached at module scope so a later install/land
-    is picked up immediately (mirrors ``mcp/physics_tools.py::_load_pde_tools``)."""
+    is picked up immediately (mirrors ``mcp/physics_tools.py::_load_pde_tools``).
+
+    Deliberately ``importlib.import_module("mixle_pde.simulation_service")`` rather than
+    ``from mixle_pde import simulation_service``: the ``from`` form resolves the submodule via
+    ``_handle_fromlist``, which skips ``sys.modules`` entirely when the parent package already has a
+    ``simulation_service`` attribute (``hasattr(mixle_pde, "simulation_service")``). Once anything in the
+    process has imported the real submodule once — including a test's own probe
+    ``from mixle_pde import simulation_service`` used only to decide whether to skip — that attribute is set
+    for the rest of the process, so a later ``monkeypatch.setitem(sys.modules, "mixle_pde.simulation_service",
+    fake)`` is silently ignored and the real module wins instead of the fake. ``importlib.import_module``
+    always resolves the fully-qualified name through ``sys.modules`` first, so it honors such a monkeypatch
+    regardless of import history/order (same rationale as ``mcp/physics_tools.py::_load_pde_tools``)."""
     try:
-        from mixle_pde import simulation_service
+        simulation_service = importlib.import_module("mixle_pde.simulation_service")
     except ImportError as exc:  # pragma: no cover - exercised only when mixle_pde lacks IC-11
         raise SimToolsUnavailable(
             "the simulate tool requires mixle_pde.simulation_service (IC-11); install/update mixle_pde "
