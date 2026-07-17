@@ -10,8 +10,10 @@ layers (contacts, faults, mapped units, ...) a physics/GIS pipeline can consume.
      when it is importable (never a hard import -- see :func:`_load_tiles`).
   2. fit a six-term pixel->CRS affine transform from the supplied ground-control points (least squares; an
      exact solve when exactly three points are given).
-  3. call a vision-language model with a structured per-layer schema (:func:`_query_vlm` -- the seam a test
-     monkeypatches with a recorded/stubbed response; no live backend is wired here yet).
+  3. call a vision-language model with a structured per-layer schema (:func:`_query_vlm`, wired through the
+     capability-routed model layer -- :func:`_query_legend_vlm` and :func:`_query_vlm_collars` below call the
+     same layer for their own extraction tasks; tests may still monkeypatch any of the three with a
+     recorded/stubbed response for deterministic, network-free runs).
   4. sanity-check every returned ring/line/point (valid geometry type, enough vertices, closed polygon rings)
      and drop anything degenerate.
   5. reproject the surviving pixel-space geometry through the fitted affine and emit one GeoJSON
@@ -457,19 +459,47 @@ class LegendMap:
     provenance: dict = field(default_factory=dict)
 
 
+def _legend_extraction_prompt(width: int, height: int) -> str:
+    return (
+        "You are reading the legend box, symbol glossary, and scale bar of a geological map image "
+        f"({width}x{height} pixels). Reply with ONLY a JSON object of the form "
+        '{"units": {"<swatch_hex_color>": "<unit_name>", ...}, '
+        '"symbols": {"<glyph_name>": "<semantic_type>", ...}, '
+        '"scale_m_per_px": <number_or_null>}. Each key of "units" is a legend swatch\'s dominant '
+        'color as a "#RRGGBB" hex string, mapped to the unit name it labels. Each key of "symbols" '
+        'is a short glyph name (e.g. "circle-open", "tick-strike") mapped to its semantic type (e.g. '
+        '"borehole", "strike_dip"). Use an empty object for units/symbols you cannot read, and null '
+        "for scale_m_per_px if no scale bar is present. No prose, only the JSON."
+    )
+
+
 def _query_legend_vlm(tiles: list[bytes], *, vlm: str | None) -> dict[str, Any]:
     """Prompt a vision-language model to read the legend box, symbol glyphs, and scale bar; return
     ``{"units": {swatch_color: unit_name, ...}, "symbols": {glyph: semantic_type, ...},
     "scale_m_per_px": float | None}``.
 
-    Same seam pattern as :func:`_query_vlm`: no live backend is wired here yet. Tests monkeypatch this
-    function with a recorded/stubbed response (see ``tests/fixtures/legend_stub.json``).
+    Wired through the same capability-routed model layer :func:`_query_vlm` uses
+    (:mod:`mixle_mlops.models.capabilities`): resolves the ``vision`` capability (or the model named by
+    ``vlm``), sends the map tile plus a structured-JSON legend/symbol/scale-bar prompt, and parses the
+    reply. Tests may still monkeypatch this whole function with a recorded fixture
+    (``tests/fixtures/legend_stub.json``) for deterministic, network-free runs.
     """
-    raise NotImplementedError(
-        "parse_legend needs a live VLM backend; monkeypatch "
-        "mixle_mlops.multimodal.map_digitize._query_legend_vlm (or wire a real model call here) to supply "
-        "the legend/symbol/scale-bar reading."
-    )
+    if not tiles:
+        return {"units": {}, "symbols": {}, "scale_m_per_px": None}
+    adapter = _resolve_vision_adapter(vlm)
+    from PIL import Image
+    import io as _io
+
+    width, height = Image.open(_io.BytesIO(tiles[0])).size
+    prompt = _legend_extraction_prompt(width, height)
+    raw = _run_vision_json(adapter, vlm or adapter.name, tiles[0], prompt)
+    if not isinstance(raw, dict):
+        return {"units": {}, "symbols": {}, "scale_m_per_px": None}
+    return {
+        "units": dict(raw.get("units") or {}),
+        "symbols": dict(raw.get("symbols") or {}),
+        "scale_m_per_px": raw.get("scale_m_per_px"),
+    }
 
 
 def parse_legend(image_ref: str, *, store: BlobStore | None = None) -> LegendMap:
@@ -625,20 +655,44 @@ class DrillholeLayer:
     provenance: dict = field(default_factory=dict)
 
 
+def _collars_extraction_prompt(width: int, height: int) -> str:
+    return (
+        "You are reading drillhole collar markers (surface entry points, each labeled with a hole id and "
+        "sometimes a collar elevation) and any plotted plan-view drillhole traces on a geological map "
+        f"image ({width}x{height} pixels). Give every coordinate as [x, y] pixel positions (origin "
+        'top-left). Reply with ONLY a JSON object of the form {"collars": [{"hole_id": str, '
+        '"pixel_coords": [[x, y]], "z": <number_or_null>}, ...], "traces": [{"hole_id": str, '
+        '"pixel_coords": [[x, y], ...]}, ...]}. Include only collars/traces you actually see; use empty '
+        "lists when there are none. No prose, only the JSON."
+    )
+
+
 def _query_vlm_collars(tiles: list[bytes], *, vlm: str | None) -> dict[str, list[dict[str, Any]]]:
     """Prompt a vision-language model for collar markers/hole-id labels and any plotted hole traces; return
     ``{"collars": [...], "traces": [...]}`` in pixel space, where each collar is
     ``{"hole_id", "pixel_coords": [[x, y]], "z"}`` (``z`` optional) and each trace is
     ``{"hole_id", "pixel_coords": [[x, y], ...]}``.
 
-    No live backend is wired at this seam yet, mirroring :func:`_query_vlm` -- tests monkeypatch this function
-    with a recorded or fixture-backed response (see ``tests/fixtures/collars_stub.json``).
+    Wired through the same capability-routed model layer :func:`_query_vlm` uses
+    (:mod:`mixle_mlops.models.capabilities`), mirroring its exact call/parse pattern. Tests may still
+    monkeypatch this whole function with a recorded or fixture-backed response (see
+    ``tests/fixtures/collars_stub.json``) for deterministic, network-free runs.
     """
-    raise NotImplementedError(
-        "extract_collars needs a live VLM backend; monkeypatch "
-        "mixle_mlops.multimodal.map_digitize._query_vlm_collars (or wire a real model call here) to supply "
-        "pixel-space collar/trace detections."
-    )
+    if not tiles:
+        return {"collars": [], "traces": []}
+    adapter = _resolve_vision_adapter(vlm)
+    from PIL import Image
+    import io as _io
+
+    width, height = Image.open(_io.BytesIO(tiles[0])).size
+    prompt = _collars_extraction_prompt(width, height)
+    raw = _run_vision_json(adapter, vlm or adapter.name, tiles[0], prompt)
+    if not isinstance(raw, dict):
+        return {"collars": [], "traces": []}
+    return {
+        "collars": list(raw.get("collars") or []),
+        "traces": list(raw.get("traces") or []),
+    }
 
 
 def _collar_pixel_point(raw: dict[str, Any]) -> tuple[float, float]:

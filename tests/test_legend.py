@@ -3,6 +3,13 @@
 Exercises :func:`parse_legend` against a stubbed VLM response (``tests/fixtures/legend_stub.json``) and
 :func:`apply_legend` against a hand-built :class:`MapDigitization` with three colored unit polygons, so the
 whole pipeline is deterministic and needs no live model call.
+
+``_query_legend_vlm`` itself is wired to the real capability-routed vision layer (same pattern as
+``_query_vlm``): rather than monkeypatching it away wholesale, these tests swap only
+``map_digitize._resolve_vision_adapter`` for a *real* :class:`OpenAICompatAdapter` running against an
+in-process ``httpx.MockTransport`` -- the same recorded-response style ``tests/test_providers.py`` uses for
+the native Anthropic/Gemini adapters. Everything downstream of adapter resolution (prompt construction, the
+adapter's actual request/response cycle, JSON-object extraction, reply-shape normalization) runs for real.
 """
 
 from __future__ import annotations
@@ -11,8 +18,10 @@ import base64
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
+from mixle_mlops.models.openai_compat import OpenAICompatAdapter
 from mixle_mlops.multimodal import map_digitize
 from mixle_mlops.multimodal.map_digitize import (
     LegendMap,
@@ -25,6 +34,35 @@ from mixle_mlops.multimodal.store import LocalBlobStore
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "legend_stub.json").read_text())
 MAP_FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "geomap_stub.json").read_text())
+
+
+def _stub_vision_adapter(monkeypatch, payload: dict, *, content: str | None = None) -> None:
+    """Stand in only for ``_resolve_vision_adapter`` -- the seam between map_digitize's business logic and
+    "which model/backend serves vision" -- with a real ``OpenAICompatAdapter`` wired to a mock transport
+    that returns ``content`` (default: ``payload`` as a plain JSON string) as the model's chat reply.
+    ``_query_legend_vlm``/``_query_vlm_collars`` then run unmodified: real prompt building, a real
+    (in-process) HTTP request/response cycle, real ``_extract_json_object``/``json.loads`` parsing."""
+    body = content if content is not None else json.dumps(payload)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-stub",
+                "model": "qwen-vl-stub",
+                "choices": [{"message": {"content": body}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            },
+        )
+
+    adapter = OpenAICompatAdapter(
+        "qwen-vl-stub",
+        base_url="https://vlm.example/v1",
+        api_key="test-key",
+        transport=httpx.MockTransport(handler),
+    )
+    monkeypatch.setattr(map_digitize, "_resolve_vision_adapter", lambda vlm: adapter)
+
 
 # a 1x1 transparent PNG -- a stand-in map image; the "VLM" responses are fully stubbed via monkeypatch below,
 # so the actual pixel content never matters to these tests.
@@ -76,7 +114,7 @@ def _put_image(blob_store) -> str:
 
 
 def test_legend_binds_units_and_scale(store, monkeypatch):
-    monkeypatch.setattr(map_digitize, "_query_legend_vlm", lambda tiles, *, vlm: FIXTURE)
+    _stub_vision_adapter(monkeypatch, FIXTURE)
 
     image_ref = _put_image(store)
     legend = parse_legend(image_ref, store=store)
@@ -117,7 +155,7 @@ def test_legend_binds_units_and_scale(store, monkeypatch):
 
 
 def test_apply_legend_skips_features_without_color_or_geometry(store, monkeypatch):
-    monkeypatch.setattr(map_digitize, "_query_legend_vlm", lambda tiles, *, vlm: FIXTURE)
+    _stub_vision_adapter(monkeypatch, FIXTURE)
     image_ref = _put_image(store)
     legend = parse_legend(image_ref, store=store)
 
@@ -161,7 +199,7 @@ def test_apply_legend_skips_features_without_color_or_geometry(store, monkeypatc
 def test_digitize_map_legend_post_pass(store, monkeypatch):
     """``digitize_map(..., legend=True)`` runs the same image through parse_legend/apply_legend."""
     monkeypatch.setattr(map_digitize, "_query_vlm", lambda tiles, *, layers, vlm: MAP_FIXTURE)
-    monkeypatch.setattr(map_digitize, "_query_legend_vlm", lambda tiles, *, vlm: FIXTURE)
+    _stub_vision_adapter(monkeypatch, FIXTURE)
 
     image_ref = _put_image(store)
     result = digitize_map(
@@ -179,9 +217,37 @@ def test_digitize_map_legend_post_pass(store, monkeypatch):
 
 def test_parse_legend_handles_missing_scale_bar(store, monkeypatch):
     no_scale = {"units": {"#000000": "Fill"}, "symbols": {}, "scale_m_per_px": None}
-    monkeypatch.setattr(map_digitize, "_query_legend_vlm", lambda tiles, *, vlm: no_scale)
+    _stub_vision_adapter(monkeypatch, no_scale)
     image_ref = _put_image(store)
 
     legend = parse_legend(image_ref, store=store)
     assert legend.scale_m_per_px is None
     assert legend.provenance["scale_source"] is None
+
+
+def test_query_legend_vlm_tolerates_markdown_fenced_reply(store, monkeypatch):
+    """The VLM sometimes wraps its JSON in a ```json ... ``` fence despite being asked not to;
+    ``_extract_json_object`` must still find and parse the object (exercised here through the real
+    adapter/parse path, not just monkeypatched around)."""
+    fenced = "```json\n" + json.dumps(FIXTURE) + "\n```"
+    _stub_vision_adapter(monkeypatch, FIXTURE, content=fenced)
+    image_ref = _put_image(store)
+
+    legend = parse_legend(image_ref, store=store)
+    assert legend.units == FIXTURE["units"]
+    assert legend.scale_m_per_px == pytest.approx(1.02)
+
+
+def test_query_legend_vlm_empty_tiles_short_circuits(monkeypatch):
+    """No tiles (e.g. an empty source image) must return the empty-legend shape without ever resolving a
+    vision adapter -- mirrors ``_query_vlm``'s own empty-tiles guard."""
+
+    def _boom(vlm):
+        raise AssertionError("must not resolve a vision adapter when there are no tiles")
+
+    monkeypatch.setattr(map_digitize, "_resolve_vision_adapter", _boom)
+    assert map_digitize._query_legend_vlm([], vlm=None) == {
+        "units": {},
+        "symbols": {},
+        "scale_m_per_px": None,
+    }
