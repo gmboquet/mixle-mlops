@@ -20,3 +20,13 @@ It replays the receipt log to re-derive the alias/previous projection, cross-che
 against registered candidates, and -- when handed a `LocalArtifactStore` -- reuses that store's own digest
 verification to confirm each candidate's artifact is still present and byte-exact. It holds no state of its own and
 never writes to the registry it inspects.
+
+`control.pde_surrogate` is the MP-N8 bridge from a trained `mixle_pde` operator surrogate into this boundary:
+`train_operator_surrogate_job` is a `WorkerHandler` that fits and calibrates a real `LinearOperatorSurrogate` from a
+job's own parameters, so training runs on the existing durable-job machinery instead of a bespoke script;
+`land_pde_artifact` re-lands an artifact already in pde's own content-addressed `ArtifactStore` into this platform's
+`LocalArtifactStore`, asserting the two independently-implemented stores agree on the same sha256 digest;
+`register_pde_operator_surrogate` turns either path's landed artifact into a `ModelCandidate` with FACTORY/HARNESS
+evidence derived from the surrogate's own held-out calibration report, so `check_registry_integrity` and
+`registry.promote`/`rollback` govern it exactly like any other candidate. `mixle_pde` remains an optional,
+lazily-imported dependency, matching `mcp/physics_tools.py`'s precedent for this cross-repo boundary.

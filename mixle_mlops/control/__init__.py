@@ -45,6 +45,17 @@ from .monitoring import (
     MonitoringPolicy,
     ThresholdDirection,
 )
+from .pde_surrogate import (
+    PDE_OPERATOR_SURROGATE_CAPABILITY_ID,
+    PDE_OPERATOR_SURROGATE_MEDIA_TYPE,
+    PDE_OPERATOR_SURROGATE_SEMANTIC_TYPE,
+    PdeSurrogateUnavailable,
+    SurrogateTrainingSpec,
+    land_pde_artifact,
+    read_operator_surrogate_payload,
+    register_pde_operator_surrogate,
+    train_operator_surrogate_job,
+)
 from .registry import DeploymentReceipt, DeploymentRegistry, QuarantineRecord
 from .runner import DurableLocalRunner, JobRecord, Lease
 from .worker import (
@@ -99,10 +110,15 @@ __all__ = [
     "OperationalError",
     "OwnerScope",
     "MonitoringPolicy",
+    "PDE_OPERATOR_SURROGATE_CAPABILITY_ID",
+    "PDE_OPERATOR_SURROGATE_MEDIA_TYPE",
+    "PDE_OPERATOR_SURROGATE_SEMANTIC_TYPE",
+    "PdeSurrogateUnavailable",
     "PromotionPolicy",
     "ResourceLimits",
     "RetryPolicy",
     "QuarantineRecord",
+    "SurrogateTrainingSpec",
     "ThresholdDirection",
     "WorkOutcome",
     "WorkReport",
@@ -111,7 +127,11 @@ __all__ = [
     "canonical_json",
     "check_registry_integrity",
     "drain",
+    "land_pde_artifact",
+    "read_operator_surrogate_payload",
+    "register_pde_operator_surrogate",
     "run_forever",
     "run_once",
     "semantic_hash",
+    "train_operator_surrogate_job",
 ]
