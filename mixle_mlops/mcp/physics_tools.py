@@ -11,9 +11,11 @@ boots (``build_physics_tools()`` returns ``{}``), and installing it later makes 
 next ``tools/list``/``ToolRegistry`` construction with no restart, the same story ``MCPServer.tools()`` already
 tells for newly-registered models.
 """
+
 from __future__ import annotations
 
 import asyncio
+import importlib
 import inspect
 from typing import Any, Callable
 
@@ -41,9 +43,18 @@ class PhysicsToolsUnavailable(RuntimeError):
 
 def _load_pde_tools() -> Any:
     """Import ``mixle_pde.tools`` (IC-3); raise :class:`PhysicsToolsUnavailable` with an actionable message if
-    the pde package isn't installed. Not cached at module scope so a later install is picked up immediately."""
+    the pde package isn't installed. Not cached at module scope so a later install is picked up immediately.
+
+    Deliberately ``importlib.import_module("mixle_pde.tools")`` rather than ``from mixle_pde import tools``:
+    the ``from`` form resolves the submodule via ``_handle_fromlist``, which skips ``sys.modules`` entirely
+    when the parent package already has a ``tools`` attribute (``hasattr(mixle_pde, "tools")``). Once anything
+    in the process — including this very function, the first time it runs for real — has imported the real
+    submodule once, that attribute is set for the rest of the process, so a test's later
+    ``monkeypatch.setitem(sys.modules, "mixle_pde.tools", fake)`` is silently ignored and the real module wins
+    instead of the fake. ``importlib.import_module`` always resolves the fully-qualified name through
+    ``sys.modules`` first, so it honors such a monkeypatch regardless of import history/order."""
     try:
-        from mixle_pde import tools as pde_tools
+        pde_tools = importlib.import_module("mixle_pde.tools")
     except ImportError as exc:  # pragma: no cover - exercised only when mixle_pde is absent
         raise PhysicsToolsUnavailable(
             "the physics tools require the mixle_pde package; install mixle_pde (see the mixle-pde repo) "

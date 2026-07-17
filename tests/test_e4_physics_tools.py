@@ -5,8 +5,9 @@ JSON-schemas) lives in ``mixle_pde.tools`` (IC-3), a sibling package landing und
 mlops-side wiring end-to-end without depending on that PR's landing order, this suite installs a minimal
 in-memory stand-in for ``mixle_pde.tools`` that honors the IC-3 signatures/return-shapes — the same technique
 as mocking any not-yet-deployed collaborator service. Once the real ``mixle_pde.tools`` lands, this wiring picks
-it up unchanged (`_load_pde_tools` does a plain ``from mixle_pde import tools``).
+it up unchanged (`_load_pde_tools` does ``importlib.import_module("mixle_pde.tools")``).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,8 +40,10 @@ PHYSICS_TOOL_SCHEMAS = {
         "type": "object",
         "properties": {
             "posterior_ref": {"type": "string"},
-            "query": {"type": "string",
-                      "enum": ["region_mass", "prob_exceed", "net_pay", "drill_target", "marginal", "section"]},
+            "query": {
+                "type": "string",
+                "enum": ["region_mass", "prob_exceed", "net_pay", "drill_target", "marginal", "section"],
+            },
             "params": {"type": "object"},
         },
         "required": ["posterior_ref", "query"],
@@ -103,7 +106,22 @@ def _registry() -> ModelRegistry:
 
 
 def test_build_physics_tools_absent_is_a_graceful_noop():
-    """Without mixle_pde installed, physics tools simply don't appear — nothing crashes."""
+    """Without mixle_pde installed, physics tools simply don't appear — nothing crashes.
+
+    Mirrors ``test_p1_simulate_tool.py::test_build_sim_tools_absent_is_a_graceful_noop``: probe for the real
+    ``mixle_pde.tools`` first and skip if it is genuinely present in this environment, rather than asserting
+    the "absent" behavior against a package that is actually installed. This probe import is itself real (not
+    monkeypatched) and — as a side effect of CPython's import machinery — caches ``tools`` as a real attribute
+    on the ``mixle_pde`` package module regardless of whether we go on to skip; ``_load_pde_tools`` uses
+    ``importlib.import_module`` specifically so that later tests' ``monkeypatch.setitem(sys.modules, ...)``
+    fakes are still honored despite that.
+    """
+    try:
+        from mixle_pde import tools  # noqa: F401
+
+        pytest.skip("mixle_pde.tools is present in this environment")
+    except ImportError:
+        pass
     from mixle_mlops.mcp.physics_tools import build_physics_tools
 
     assert build_physics_tools() == {}
@@ -170,9 +188,7 @@ def test_run_inversion_then_query_posterior_round_trip_carries_prior_dominated(m
         posterior_ref = inversion["posterior_ref"]
         assert posterior_ref
 
-        queried = await registry.dispatch(
-            "query_posterior", {"posterior_ref": posterior_ref, "query": "region_mass"}
-        )
+        queried = await registry.dispatch("query_posterior", {"posterior_ref": posterior_ref, "query": "region_mass"})
         return queried
 
     result = asyncio.run(_turn())
@@ -226,3 +242,31 @@ def test_catalog_entries_register_when_ic10_and_pde_tools_present(monkeypatch):
     count = register_physics_catalog(catalog)
     assert count == 4
     assert set(catalog.registered) == {"run_inversion", "query_posterior", "gassmann", "forward_model"}
+
+
+def test_load_pde_tools_honors_a_monkeypatched_fake_even_after_a_real_import_cached_the_attribute(monkeypatch):
+    """Regression test for the mixle_pde submodule import-caching bug (distinct from #61's TreeLogitProvider
+    KV-cache bug): a real ``from mixle_pde import tools`` anywhere earlier in the process -- e.g. another
+    test's own probe import, or simply collecting a test file that imports it unconditionally -- sets a
+    ``tools`` attribute on the ``mixle_pde`` package module as a side effect of CPython's import machinery.
+    ``from mixle_pde import tools`` elsewhere then resolves via ``_handle_fromlist``, which skips
+    ``sys.modules`` entirely once that attribute already exists, silently ignoring a later
+    ``monkeypatch.setitem(sys.modules, "mixle_pde.tools", fake)`` and returning the real module instead.
+
+    Forces that poisoning inline -- rather than relying on incidental ordering against another test -- and
+    asserts ``_load_pde_tools`` (which uses ``importlib.import_module`` precisely to sidestep this) still picks
+    up the fake regardless.
+    """
+    real_tools = pytest.importorskip("mixle_pde.tools")
+    import mixle_pde
+
+    assert mixle_pde.tools is real_tools  # sanity: the poisoning precondition actually holds after the import above
+
+    _install_fake_pde_tools(monkeypatch)
+    fake = sys.modules["mixle_pde.tools"]
+
+    from mixle_mlops.mcp.physics_tools import _load_pde_tools
+
+    loaded = _load_pde_tools()
+    assert loaded is fake, "a real import earlier in the process shadowed the monkeypatched fake"
+    assert loaded is not real_tools
