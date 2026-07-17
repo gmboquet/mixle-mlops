@@ -21,3 +21,12 @@ Run `python -m mixle_mlops.control.integrity <registry-root> [--artifacts-root <
 mid-write, before trusting a hand-recovered `deployments.json`, or on a schedule; it exits `0` when clean and `1`
 when it finds any issue, printing one line per finding. It only reads state -- a nonzero exit is a signal to
 investigate and, if warranted, roll back or restore from backup, not an action the checker takes itself.
+
+Training a `mixle_pde` operator surrogate is now durable-job work like anything else: submit a `JobSpec` whose
+`InvocationSpec.parameters` is a `pde_surrogate.SurrogateTrainingSpec`, then drive it with the same
+`run_once`/`drain`/`run_forever` loop passing `train_operator_surrogate_job` as the handler -- claim, lease,
+checkpoint, retry, and recovery are unchanged. A surrogate trained outside any job (via pde's own `ArtifactStore`)
+lands the same way via `land_pde_artifact`. Either path's result registers with `register_pde_operator_surrogate`,
+whose HARNESS evidence is exactly the surrogate's own held-out calibration gate (`imprecise`) -- a surrogate that
+fails its own honesty check fails promotion, not a separately re-derived judgment. `mixle_pde` is optional and
+lazily imported; a deployment without it still runs every other control operation unchanged.

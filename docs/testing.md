@@ -18,3 +18,11 @@ previous pointer naming an unregistered candidate, a receipt naming an unregiste
 unrecognized action, a corrupted receipt sequence (gap and duplicate together), live state disagreeing with a
 receipt-log replay while every candidate stays individually valid, and both a missing and a digest-mismatched
 candidate artifact when an artifact store is supplied.
+
+The focused pde-surrogate-bridge tests (skipped, not failed, when `mixle_pde` or `numpy` are not installed) cover:
+training a real `LinearOperatorSurrogate` end to end through the durable worker (claim, a mid-fit checkpoint,
+calibrate, complete) with the unpickled surrogate genuinely predicting; the trained result passing
+`check_registry_integrity` once registered; a surrogate landed from pde's own `ArtifactStore` instead, with its
+lineage (parent snapshot digest, pde-side metadata) carried into the candidate and both stores agreeing on the same
+sha256 digest; the full train -> register -> integrity-check -> promote -> resolve lifecycle in one pass; and an
+`imprecise` calibration producing a failing HARNESS receipt that `registry.promote` genuinely refuses.
